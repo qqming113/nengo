@@ -844,6 +844,22 @@ class SimOja(Operator):
         return step
 
 
+class SimLIF(SimNeurons):
+    pass
+
+
+class SimLIFRate(SimNeurons):
+    pass
+
+
+class SimALIF(SimNeurons):
+    pass
+
+
+class SimALIFRate(SimNeurons):
+    pass
+
+
 class Model(object):
     """Output of the Builder, used by the Simulator."""
 
@@ -1075,7 +1091,7 @@ Builder.register_builder(build_ensemble, Ensemble)
 
 
 def build_lifrate(lif, ens, model, config):
-    model.add_op(SimNeurons(neurons=lif,
+    model.add_op(SimLIFRate(neurons=lif,
                             J=model.sig[ens]['neuron_in'],
                             output=model.sig[ens]['neuron_out']))
 
@@ -1087,7 +1103,7 @@ def build_lif(lif, ens, model, config):
         np.zeros(ens.n_neurons), name="%s.voltage" % ens)
     model.sig[ens]['refractory_time'] = Signal(
         np.zeros(ens.n_neurons), name="%s.refractory_time" % ens)
-    model.add_op(SimNeurons(
+    model.add_op(SimLIF(
         neurons=lif,
         J=model.sig[ens]['neuron_in'],
         output=model.sig[ens]['neuron_out'],
@@ -1099,10 +1115,10 @@ Builder.register_builder(build_lif, LIF)
 def build_alifrate(alif, ens, model, config):
     model.sig[ens]['adaptation'] = Signal(
         np.zeros(ens.n_neurons), name="%s.adaptation" % ens)
-    model.add_op(SimNeurons(neurons=alif,
-                            J=model.sig[ens]['neuron_in'],
-                            output=model.sig[ens]['neuron_out'],
-                            states=[model.sig[ens]['adaptation']]))
+    model.add_op(SimALIFRate(neurons=alif,
+                             J=model.sig[ens]['neuron_in'],
+                             output=model.sig[ens]['neuron_out'],
+                             states=[model.sig[ens]['adaptation']]))
 
 Builder.register_builder(build_alifrate, AdaptiveLIFRate)
 
@@ -1114,12 +1130,12 @@ def build_alif(alif, ens, model, config):
         np.zeros(ens.n_neurons), name="%s.refractory_time" % ens)
     model.sig[ens]['adaptation'] = Signal(
         np.zeros(ens.n_neurons), name="%s.adaptation" % ens)
-    model.add_op(SimNeurons(neurons=alif,
-                            J=model.sig[ens]['neuron_in'],
-                            output=model.sig[ens]['neuron_out'],
-                            states=[model.sig[ens]['voltage'],
-                                    model.sig[ens]['refractory_time'],
-                                    model.sig[ens]['adaptation']]))
+    model.add_op(SimALIF(neurons=alif,
+                         J=model.sig[ens]['neuron_in'],
+                         output=model.sig[ens]['neuron_out'],
+                         states=[model.sig[ens]['voltage'],
+                                 model.sig[ens]['refractory_time'],
+                                 model.sig[ens]['adaptation']]))
 
 Builder.register_builder(build_alif, AdaptiveLIF)
 
