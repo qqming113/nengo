@@ -106,6 +106,7 @@ class Simulator(object):
 
         # Use model seed as simulator seed if the seed is not provided
         # Note: seed is not used right now, but one day...
+        assert seed is None, "Simulator seed not yet implemented"
         self.seed = self.model.seed if seed is None else seed
 
         # -- map from Signal.base -> ndarray
