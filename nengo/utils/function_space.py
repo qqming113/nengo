@@ -111,3 +111,25 @@ class Function_Space(object):
         if signal_coeff.shape[0] == 1:
             signal_coeff = signal_coeff.reshape((self.n_basis,))
         return signal_coeff
+
+    def eval_points(self, n_points):
+        """Return normalized coefficients belonging to functions that are
+        linear combinations of polynomial functions"""
+
+        largest_poly_deg = 4
+
+        #random coefficient matrix
+        coeff_matrix = np.random.uniform(low=-5, high=5,
+                                         size=(n_points, largest_poly_deg))
+
+        func_val = np.empty((len(self.domain), n_points))
+        for i in range(n_points):
+            func_val[:, i] = np.polynomial.polynomial.polyval(self.domain.flatten(),
+                                                              coeff_matrix[i, :])
+        func_coeff = self.signal_coeffs(func_val) # size (n_eval_points, n_basis)
+
+        if len(func_coeff.shape) > 1:
+            func_coeff /= np.linalg.norm(func_coeff, axis=1)[:, np.newaxis]
+        else:
+            func_coeff /= np.linalg.norm(func_coeff)
+        return func_coeff
