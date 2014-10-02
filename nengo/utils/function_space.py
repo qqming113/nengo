@@ -9,7 +9,8 @@ import nengo
 # NOTES:
 # range of functions always has dim 1, what about arbitrary dims
 # fourier transform
-# picking evaluation points for the coefficients of the function space?
+# picking evaluation points for the coefficients of the function space? should these be linear
+# combinations of the original basis??
 
 def gaussian_functions_1D(n_basis, sigma, radius):
     centers = np.random.uniform(-radius, radius, (n_basis,))
@@ -24,6 +25,8 @@ def gaussian_functions_1D(n_basis, sigma, radius):
 
 def uniform_cube(domain_dim, radius=1, d=0.001):
     """Returns uniformly spaced points in a hypercube.
+
+    The hypercube is defined by the given radius and dimension.
 
     Parameters:
     ----------
@@ -45,6 +48,7 @@ def uniform_cube(domain_dim, radius=1, d=0.001):
         grid = np.meshgrid(*[axis for _ in range(domain_dim)])
         domain_points = np.vstack(map(np.ravel, grid))
     return domain_points
+
 
 class Function_Space(object):
     """A helper class for using function spaces in nengo.
@@ -101,7 +105,9 @@ class Function_Space(object):
         return np.dot(self.values.T, self.basis) * self.dx
 
     def signal_coeffs(self, signal):
-        """Project a given signal onto basis to get signal coefficients."""
+        """Project a given signal onto basis to get signal coefficients.
+           Size returned is (n_signals, n_basis)"""
         signal_coeff = np.dot(signal.T, self.basis) * self.dx
-        signal_coeff = signal_coeff.reshape((self.n_basis,))
+        if signal_coeff.shape[0] == 1:
+            signal_coeff = signal_coeff.reshape((self.n_basis,))
         return signal_coeff
