@@ -112,17 +112,20 @@ class Function_Space(object):
             signal_coeff = signal_coeff.reshape((self.n_basis,))
         return signal_coeff
 
+    #what about other functions besides polys?
+    #are there better ways of generating coefficients?
     def eval_points(self, n_points):
         """Return normalized coefficients belonging to functions that are
         linear combinations of polynomial functions"""
 
-        largest_poly_deg = 4
+        largest_poly_deg = 3
 
         #random coefficient matrix
         coeff_matrix = np.random.uniform(low=-5, high=5,
                                          size=(n_points, largest_poly_deg))
 
         func_val = np.empty((len(self.domain), n_points))
+
         for i in range(n_points):
             func_val[:, i] = np.polynomial.polynomial.polyval(self.domain.flatten(),
                                                               coeff_matrix[i, :])
