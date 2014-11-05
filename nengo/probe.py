@@ -1,6 +1,6 @@
 from nengo.base import NengoObject, NengoObjectParam, ObjView
 from nengo.config import Config
-from nengo.connection import Connection
+from nengo.connection import Connection, LearningRule
 from nengo.params import (
     Default, ConnectionDefault, IntParam, NumberParam, StringParam)
 from nengo.solvers import SolverParam
@@ -15,14 +15,15 @@ class TargetParam(NengoObjectParam):
                 "Type '%s' is not probeable" % obj.__class__.__name__)
 
         # do this after; better to know that type is not Probable first
-        super(TargetParam, self).validate(probe, target)
+        if not isinstance(obj, LearningRule):
+            super(TargetParam, self).validate(probe, target)
 
 
 class AttributeParam(StringParam):
     def validate(self, probe, attr):
         super(AttributeParam, self).validate(probe, attr)
         if attr not in probe.obj.probeable:
-            raise ValueError("Attribute '%s' is not probeable for '%s'."
+            raise ValueError("Attribute '%s' is not probeable on %s."
                              % (attr, probe.obj))
 
 
@@ -67,6 +68,8 @@ class Probe(NengoObject):
         them (see `nengo.solvers`). Defaults to the same solver as Connection.
     seed : int
         The seed used for random number generation in the Connection.
+    label : str, optional
+        A name for the probe. Used for debugging and visualization.
     """
 
     target = TargetParam(nonzero_size_out=True)
@@ -75,15 +78,17 @@ class Probe(NengoObject):
     synapse = SynapseParam(default=None)
     solver = ProbeSolverParam(default=ConnectionDefault)
     seed = IntParam(default=None, optional=True)
+    label = StringParam(default=None, optional=True)
 
     def __init__(self, target, attr=None, sample_every=Default,
-                 synapse=Default, solver=Default, seed=Default):
+                 synapse=Default, solver=Default, seed=Default, label=Default):
         self.target = target
         self.attr = attr if attr is not None else self.obj.probeable[0]
         self.sample_every = sample_every
         self.synapse = synapse
         self.solver = solver
         self.seed = seed
+        self.label = label
 
     @property
     def obj(self):
@@ -104,8 +109,11 @@ class Probe(NengoObject):
         return 0
 
     def __str__(self):
-        return "<Probe of '%s' of %s>" % (self.attr, self.target)
+        return "<Probe%s of '%s' of %s>" % (
+            "" if self.label is None else ' "%s"' % self.label,
+            self.attr, self.target)
 
     def __repr__(self):
-        return "<Probe at 0x%x of '%s' of %s>" % (
+        return "<Probe%s at 0x%x of '%s' of %s>" % (
+            "" if self.label is None else ' "%s"' % self.label,
             id(self), self.attr, self.target)

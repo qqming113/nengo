@@ -1,7 +1,8 @@
 import numpy as np
 
 import nengo
-from nengo.spa.action_objects import Symbol, Source
+import nengo.spa.action_build
+from nengo.spa.action_objects import Symbol, Source, Convolution
 from nengo.spa.module import Module
 from nengo.utils.compat import iteritems
 
@@ -15,11 +16,14 @@ class Cortical(Module):
         The actions to implement
     synapse : float
         The synaptic filter to use for the connections
+    neurons_cconv : int
+        Number of neurons per circular convolution dimension
     """
-    def __init__(self, actions, synapse=0.01):
+    def __init__(self, actions, synapse=0.01, neurons_cconv=200):
         super(Cortical, self).__init__()
         self.actions = actions
         self.synapse = synapse
+        self.neurons_cconv = neurons_cconv
         self._bias = None
 
     def on_add(self, spa):
@@ -41,6 +45,8 @@ class Cortical(Module):
                         self.add_route_effect(name, effect.name,
                                               effect.transform.symbol,
                                               effect.inverted)
+                    elif isinstance(effect, Convolution):
+                        self.add_conv_effect(name, effect)
                     else:
                         raise NotImplementedError(
                             "Subexpression '%s' from action '%s' is not "
@@ -100,3 +106,16 @@ class Cortical(Module):
 
         with self.spa:
             nengo.Connection(source, target, transform=t, synapse=self.synapse)
+
+    def add_conv_effect(self, target_name, effect):
+        """Convolve the output of two modules and send result to target.
+
+        Parameters
+        ----------
+        target_name : string
+            The name of the module input to affect
+        effect : action_objects.Convolution
+            The details of the convolution to implement
+        """
+        nengo.spa.action_build.convolution(self, target_name, effect,
+                                           self.neurons_cconv, self.synapse)

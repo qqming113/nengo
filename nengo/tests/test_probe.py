@@ -36,39 +36,25 @@ def test_multirun(Simulator):
 
 
 def test_dts(Simulator):
-    """Test probes with different sampling times."""
+    """Test probes with different dts and runtimes"""
 
-    n = 10
+    rng = np.random.RandomState(9)
+    for i in range(100):
+        dt = rng.uniform(0.001, 0.1)  # simulator dt
+        dt2 = rng.uniform(dt, 0.15)   # probe dt
+        tend = rng.uniform(0.2, 0.3)  # simulator runtime
 
-    rng = np.random.RandomState(48392)
-    dts = 0.001 * rng.randint(low=1, high=100, size=n)
-    # dts = 0.001 * np.hstack([2, rng.randint(low=1, high=100, size=n-1)])
+        with nengo.Network(seed=0) as model:
+            a = nengo.Node(output=0)
+            ap = nengo.Probe(a, sample_every=dt2)
 
-    def input_fn(t):
-        return [np.sin(t), np.cos(t)]
+        sim = Simulator(model, dt=dt)
+        sim.run(tend)
+        t = sim.trange(dt2)
+        x = sim.data[ap]
 
-    model = nengo.Network(label='test_probe_dts', seed=2891)
-    with model:
-        probes = []
-        for i, dt in enumerate(dts):
-            xi = nengo.Node(label='x%d' % i, output=input_fn)
-            p = nengo.Probe(xi, 'output', sample_every=dt)
-            probes.append(p)
-
-    sim = Simulator(model)
-    simtime = 2.483
-
-    with Timer() as timer:
-        sim.run(simtime)
-    logger.debug("Ran %d probes for %f sec simtime in %0.3f sec",
-                 n, simtime, timer.duration)
-
-    for i, p in enumerate(probes):
-        t = dts[i] * np.arange(1, 1 + int(simtime / dts[i]))
-        x = np.asarray([input_fn(tt) for tt in t])
-        y = sim.data[p]
-        assert len(x) == len(y)
-        assert np.allclose(y, x)
+        assert len(t) == len(x), "dt=%f, dt2=%f, tend=%f, nt=%d, nx=%d" % (
+            dt, dt2, tend, len(t), len(x))
 
 
 def test_large(Simulator):
@@ -128,7 +114,7 @@ def test_simulator_dt(Simulator):
         nengo.Connection(a, b)
         bp = nengo.Probe(b)
 
-    sim = nengo.Simulator(model, dt=0.01)
+    sim = Simulator(model, dt=0.01)
     sim.run(1.)
     assert sim.data[bp].shape == (100, 1)
 
@@ -144,7 +130,7 @@ def test_multiple_probes(Simulator):
         p_01 = nengo.Probe(ens, sample_every=f * dt)
         p_1 = nengo.Probe(ens, sample_every=f**2 * dt)
 
-    sim = nengo.Simulator(model, dt=dt)
+    sim = Simulator(model, dt=dt)
     sim.run(1.)
     assert np.allclose(sim.data[p_001][f - 1::f], sim.data[p_01])
     assert np.allclose(sim.data[p_01][f - 1::f], sim.data[p_1])
@@ -161,7 +147,7 @@ def test_input_probe(Simulator):
         nengo.Connection(n2, ens, synapse=None)
         input_probe = nengo.Probe(ens, 'input')
 
-        sim = nengo.Simulator(model)
+        sim = Simulator(model)
         sim.run(1.)
         t = sim.trange()
         assert np.allclose(sim.data[input_probe][:, 0], np.sin(t) + 0.5)
@@ -179,7 +165,7 @@ def test_slice(Simulator, nl):
         bp1a = nengo.Probe(b[1], synapse=0.03)
         bp1b = nengo.Probe(b[1:], synapse=0.03)
 
-    sim = nengo.Simulator(model)
+    sim = Simulator(model)
     sim.run(1.0)
     assert np.allclose(sim.data[bp][:, 0], sim.data[bp0a][:, 0])
     assert np.allclose(sim.data[bp][:, 0], sim.data[bp0b][:, 0])

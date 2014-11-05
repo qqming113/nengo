@@ -8,32 +8,32 @@ from nengo.connection import ConnectionSolverParam
 from nengo.solvers import LstsqL2
 from nengo.utils.functions import piecewise
 from nengo.utils.numpy import filtfilt
-from nengo.utils.testing import Plotter, allclose
+from nengo.utils.testing import allclose
 
 logger = logging.getLogger(__name__)
 
 
-def test_args(nl):
+def test_args(nl, seed, rng):
     N = 10
     d1, d2 = 3, 2
 
-    with nengo.Network(label='test_args') as model:
+    with nengo.Network(seed=seed) as model:
         model.config[nengo.Ensemble].neuron_type = nl()
         A = nengo.Ensemble(N, dimensions=d1)
         B = nengo.Ensemble(N, dimensions=d2)
         nengo.Connection(
             A, B,
-            eval_points=np.random.normal(size=(500, d1)),
+            eval_points=rng.normal(size=(500, d1)),
             synapse=0.01,
             function=np.sin,
-            transform=np.random.normal(size=(d2, d1)))
+            transform=rng.normal(size=(d2, d1)))
 
 
-def test_node_to_neurons(Simulator, nl_nodirect):
+def test_node_to_neurons(Simulator, nl_nodirect, plt, seed):
     name = 'node_to_neurons'
     N = 30
 
-    m = nengo.Network(label=name, seed=123)
+    m = nengo.Network(label=name, seed=seed)
     with m:
         m.config[nengo.Ensemble].neuron_type = nl_nodirect()
         a = nengo.Ensemble(N, dimensions=1)
@@ -52,19 +52,16 @@ def test_node_to_neurons(Simulator, nl_nodirect):
     ideal = np.sin(t)
     ideal[t >= 2.5] = 0
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, sim.data[inn_p], label='Input')
-        plt.plot(t, sim.data[a_p], label='Neuron approx, synapse=0.1')
-        plt.plot(t, sim.data[inh_p], label='Inhib signal')
-        plt.plot(t, ideal, label='Ideal output')
-        plt.legend(loc=0, prop={'size': 10})
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    plt.plot(t, sim.data[inn_p], label='Input')
+    plt.plot(t, sim.data[a_p], label='Neuron approx, synapse=0.1')
+    plt.plot(t, sim.data[inh_p], label='Inhib signal')
+    plt.plot(t, ideal, label='Ideal output')
+    plt.legend(loc=0, prop={'size': 10})
 
     assert np.allclose(sim.data[a_p][-10:], 0, atol=.1, rtol=.01)
 
 
-def test_ensemble_to_neurons(Simulator, nl_nodirect):
+def test_ensemble_to_neurons(Simulator, nl_nodirect, plt):
     name = 'ensemble_to_neurons'
     N = 30
 
@@ -90,22 +87,18 @@ def test_ensemble_to_neurons(Simulator, nl_nodirect):
     ideal = np.sin(t)
     ideal[t >= 2.5] = 0
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, sim.data[inn_p], label='Input')
-        plt.plot(t, sim.data[a_p], label='Neuron approx, pstc=0.1')
-        plt.plot(
-            t, sim.data[b_p], label='Neuron approx of inhib sig, pstc=0.1')
-        plt.plot(t, sim.data[inh_p], label='Inhib signal')
-        plt.plot(t, ideal, label='Ideal output')
-        plt.legend(loc=0, prop={'size': 10})
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    plt.plot(t, sim.data[inn_p], label='Input')
+    plt.plot(t, sim.data[a_p], label='Neuron approx, pstc=0.1')
+    plt.plot(t, sim.data[b_p], label='Neuron approx of inhib sig, pstc=0.1')
+    plt.plot(t, sim.data[inh_p], label='Inhib signal')
+    plt.plot(t, ideal, label='Ideal output')
+    plt.legend(loc=0, prop={'size': 10})
 
     assert np.allclose(sim.data[a_p][-10:], 0, atol=.1, rtol=.01)
     assert np.allclose(sim.data[b_p][-10:], 1, atol=.1, rtol=.01)
 
 
-def test_node_to_ensemble(Simulator, nl_nodirect):
+def test_node_to_ensemble(Simulator, nl_nodirect, plt):
     name = 'node_to_ensemble'
     N = 50
 
@@ -130,12 +123,9 @@ def test_node_to_ensemble(Simulator, nl_nodirect):
     sim.run(5.0)
     t = sim.trange()
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, sim.data[a_p], label='A')
-        plt.plot(t, sim.data[b_p], label='B')
-        plt.plot(t, sim.data[c_p], label='C')
-        plt.savefig('test_connection.test_%s.pdf' % name)
-        plt.close()
+    plt.plot(t, sim.data[a_p], label='A')
+    plt.plot(t, sim.data[b_p], label='B')
+    plt.plot(t, sim.data[c_p], label='C')
 
     assert np.allclose(sim.data[a_p][-10:], sim.data[c_p][-10:][:, 0],
                        atol=0.1, rtol=0.01)
@@ -143,7 +133,7 @@ def test_node_to_ensemble(Simulator, nl_nodirect):
                        atol=0.1, rtol=0.01)
 
 
-def test_neurons_to_ensemble(Simulator, nl_nodirect):
+def test_neurons_to_ensemble(Simulator, nl_nodirect, plt):
     name = 'neurons_to_ensemble'
     N = 20
 
@@ -164,17 +154,14 @@ def test_neurons_to_ensemble(Simulator, nl_nodirect):
     sim.run(5.0)
     t = sim.trange()
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, sim.data[a_p], label='A')
-        plt.plot(t, sim.data[b_p], label='B')
-        plt.plot(t, sim.data[c_p], label='C')
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    plt.plot(t, sim.data[a_p], label='A')
+    plt.plot(t, sim.data[b_p], label='B')
+    plt.plot(t, sim.data[c_p], label='C')
 
     assert np.all(sim.data[b_p][-10:] < 0)
 
 
-def test_neurons_to_node(Simulator, nl_nodirect):
+def test_neurons_to_node(Simulator, nl_nodirect, plt):
     name = 'neurons_to_node'
     N = 30
 
@@ -192,21 +179,18 @@ def test_neurons_to_node(Simulator, nl_nodirect):
     sim.run(0.6)
     t = sim.trange()
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        ax = plt.subplot(111)
-        try:
-            from nengo.matplotlib import rasterplot
-            rasterplot(t, sim.data[a_spikes], ax=ax)
-            rasterplot(t, sim.data[out_p], ax=ax)
-        except ImportError:
-            pass
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    ax = plt.subplot(111)
+    try:
+        from nengo.matplotlib import rasterplot
+        rasterplot(t, sim.data[a_spikes], ax=ax)
+        rasterplot(t, sim.data[out_p], ax=ax)
+    except ImportError:
+        pass
 
     assert np.allclose(sim.data[a_spikes], sim.data[out_p])
 
 
-def test_neurons_to_neurons(Simulator, nl_nodirect):
+def test_neurons_to_neurons(Simulator, nl_nodirect, plt):
     name = 'neurons_to_neurons'
     N1, N2 = 30, 50
 
@@ -228,19 +212,16 @@ def test_neurons_to_neurons(Simulator, nl_nodirect):
     sim.run(5.0)
     t = sim.trange()
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, sim.data[inp_p], label='Input')
-        plt.plot(t, sim.data[a_p], label='A, represents input')
-        plt.plot(t, sim.data[b_p], label='B, should be 0')
-        plt.legend(loc=0, prop={'size': 10})
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    plt.plot(t, sim.data[inp_p], label='Input')
+    plt.plot(t, sim.data[a_p], label='A, represents input')
+    plt.plot(t, sim.data[b_p], label='B, should be 0')
+    plt.legend(loc=0, prop={'size': 10})
 
     assert np.allclose(sim.data[a_p][-10:], 1, atol=.1, rtol=.01)
     assert np.allclose(sim.data[b_p][-10:], 0, atol=.1, rtol=.01)
 
 
-def test_function_and_transform(Simulator, nl):
+def test_function_and_transform(Simulator, nl, plt):
     """Test using both a function and a transform"""
 
     model = nengo.Network(seed=742)
@@ -253,27 +234,23 @@ def test_function_and_transform(Simulator, nl):
         ap = nengo.Probe(a, synapse=0.03)
         bp = nengo.Probe(b, synapse=0.03)
 
-    sim = nengo.Simulator(model)
+    sim = Simulator(model)
     sim.run(1.0)
     x0, x1 = np.dot(sim.data[ap]**2, [[1., -1]]).T
     y0, y1 = sim.data[bp].T
 
-    with Plotter(Simulator, nl) as plt:
-        t = sim.trange()
-        plt.plot(t, x0, 'b:', label='a**2')
-        plt.plot(t, x1, 'g:', label='-a**2')
-        plt.plot(t, y0, 'b', label='b[0]')
-        plt.plot(t, y1, 'g', label='b[1]')
-        plt.legend(loc=0, prop={'size': 10})
-        plt.savefig('test_connection.test_function_and_transform.pdf')
-        plt.close()
+    t = sim.trange()
+    plt.plot(t, x0, 'b:', label='a**2')
+    plt.plot(t, x1, 'g:', label='-a**2')
+    plt.plot(t, y0, 'b', label='b[0]')
+    plt.plot(t, y1, 'g', label='b[1]')
+    plt.legend(loc=0, prop={'size': 10})
 
     assert np.allclose(x0, y0, atol=.1, rtol=.01)
     assert np.allclose(x1, y1, atol=.1, rtol=.01)
 
 
-def test_weights(Simulator, nl):
-    name = 'test_weights'
+def test_weights(Simulator, nl, plt):
     n1, n2 = 100, 50
 
     def func(t):
@@ -281,7 +258,7 @@ def test_weights(Simulator, nl):
 
     transform = np.array([[0.6, -0.4]])
 
-    m = nengo.Network(label=name, seed=3902)
+    m = nengo.Network(label='test_weights', seed=3902)
     with m:
         m.config[nengo.Ensemble].neuron_type = nl()
         u = nengo.Node(output=func)
@@ -300,13 +277,10 @@ def test_weights(Simulator, nl):
     x = func(t).T
     y = np.dot(x, transform.T)
     z = filtfilt(sim.data[bp], 10, axis=0)
-    assert allclose(t, y.flatten(), z.flatten(),
-                    plotter=Plotter(Simulator, nl),
-                    filename='test_connection.' + name + '.pdf',
-                    atol=0.1, rtol=0, buf=100, delay=10)
+    assert allclose(t, y, z, atol=0.1, buf=0.1, delay=0.01, plt=plt)
 
 
-def test_vector(Simulator, nl):
+def test_vector(Simulator, nl, plt):
     name = 'vector'
     N1, N2 = 50, 50
     transform = [-1, 0.5]
@@ -330,18 +304,15 @@ def test_vector(Simulator, nl):
     y = x * transform
     yhat = sim.data[bp]
 
-    with Plotter(Simulator, nl) as plt:
-        plt.plot(t, y, '--')
-        plt.plot(t, yhat)
-        plt.savefig('test_connection.test_' + name + '.pdf')
-        plt.close()
+    plt.plot(t, y, '--')
+    plt.plot(t, yhat)
 
     assert np.allclose(y[-10:], yhat[-10:], atol=.1, rtol=.01)
 
 
-def test_dimensionality_errors(nl_nodirect):
+def test_dimensionality_errors(nl_nodirect, seed, rng):
     N = 10
-    with nengo.Network(label="test_dimensionality_error") as m:
+    with nengo.Network(seed=seed) as m:
         m.config[nengo.Ensemble].neuron_type = nl_nodirect()
         n01 = nengo.Node(output=[1])
         n02 = nengo.Node(output=[1, 1])
@@ -354,7 +325,7 @@ def test_dimensionality_errors(nl_nodirect):
         nengo.Connection(n02, e2)
         nengo.Connection(e2, n21)
         nengo.Connection(n21, e1)
-        nengo.Connection(e1.neurons, n21, transform=np.random.randn(2, N))
+        nengo.Connection(e1.neurons, n21, transform=rng.randn(2, N))
         nengo.Connection(e2, e1, function=lambda x: x[0])
         nengo.Connection(e2, e2, transform=np.ones(2))
 
@@ -364,9 +335,9 @@ def test_dimensionality_errors(nl_nodirect):
         with pytest.raises(ValueError):
             nengo.Connection(e1, e2)
         with pytest.raises(ValueError):
-            nengo.Connection(e2.neurons, e1, transform=np.random.randn(1, N+1))
+            nengo.Connection(e2.neurons, e1, transform=rng.randn(1, N+1))
         with pytest.raises(ValueError):
-            nengo.Connection(e2.neurons, e1, transform=np.random.randn(2, N))
+            nengo.Connection(e2.neurons, e1, transform=rng.randn(2, N))
         with pytest.raises(ValueError):
             nengo.Connection(e2, e1, function=lambda x: x, transform=[[1]])
         with pytest.raises(TypeError):
@@ -391,7 +362,7 @@ def test_dimensionality_errors(nl_nodirect):
             nengo.Connection(e2[0], e2, transform=[[1, 2]])
 
 
-def test_slicing(Simulator, nl):
+def test_slicing(Simulator, nl, plt, seed):
     N = 300
 
     x = np.array([-1, -0.25, 1])
@@ -419,7 +390,7 @@ def test_slicing(Simulator, nl):
     Ts = [T1, T2, T3]
     ys = [y1, y2, y3]
 
-    with nengo.Network(seed=932) as m:
+    with nengo.Network(seed=seed) as m:
         m.config[nengo.Ensemble].neuron_type = nl()
 
         u = nengo.Node(output=x)
@@ -432,17 +403,14 @@ def test_slicing(Simulator, nl):
             nengo.Connection(a[sa], b[sb], transform=T)
             probes.append(nengo.Probe(b, synapse=0.03))
 
-    sim = nengo.Simulator(m)
+    sim = Simulator(m)
     sim.run(0.2)
     t = sim.trange()
 
-    with Plotter(Simulator, nl) as plt:
-        for i, [y, p] in enumerate(zip(ys, probes)):
-            plt.subplot(len(ys), 1, i)
-            plt.plot(t, np.tile(y, (len(t), 1)), '--')
-            plt.plot(t, sim.data[p])
-        plt.savefig('test_connection.test_slicing.pdf')
-        plt.close()
+    for i, [y, p] in enumerate(zip(ys, probes)):
+        plt.subplot(len(ys), 1, i)
+        plt.plot(t, np.tile(y, (len(t), 1)), '--')
+        plt.plot(t, sim.data[p])
 
     atol = 0.01 if nl is nengo.Direct else 0.1
     for i, [y, p] in enumerate(zip(ys, probes)):
@@ -455,11 +423,11 @@ def test_shortfilter(Simulator, nl):
     with m:
         m.config[nengo.Ensemble].neuron_type = nl()
         a = nengo.Ensemble(n_neurons=10, dimensions=1)
-        nengo.Connection(a, a)
+        nengo.Connection(a, a, synapse=0)
 
         b = nengo.Ensemble(n_neurons=10, dimensions=1)
-        nengo.Connection(a, b)
-        nengo.Connection(b, a)
+        nengo.Connection(a, b, synapse=0)
+        nengo.Connection(b, a, synapse=0)
 
     Simulator(m, dt=.01)
     # This test passes if there are no cycles in the op graph
@@ -473,9 +441,9 @@ def test_shortfilter(Simulator, nl):
         Simulator(m, dt=.01)
 
 
-def test_zerofilter(Simulator):
+def test_zerofilter(Simulator, seed):
     # Testing the case where the connection filter is zero
-    m = nengo.Network(seed=8)
+    m = nengo.Network(seed=seed)
     with m:
         # Ensure no cycles in the op graph.
         a = nengo.Ensemble(1, dimensions=1, neuron_type=nengo.Direct())
@@ -492,7 +460,7 @@ def test_zerofilter(Simulator):
     assert np.unique(sim.data[bp]).size == 2
 
 
-def test_function_output_size(Simulator, nl_nodirect):
+def test_function_output_size(Simulator, nl_nodirect, plt):
     """Try a function that outputs both 0-d and 1-d arrays"""
     def bad_function(x):
         return x if x > 0 else 0
@@ -514,16 +482,13 @@ def test_function_output_size(Simulator, nl_nodirect):
     x = nengo.utils.numpy.filt(sim.data[up].clip(0, np.inf), 0.03 / sim.dt)
     y = sim.data[bp]
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(t, x, 'k')
-        plt.plot(t, y)
-        plt.savefig('test_connection.test_function_output_size.pdf')
-        plt.close()
+    plt.plot(t, x, 'k')
+    plt.plot(t, y)
 
     assert np.allclose(x, y, atol=0.1)
 
 
-def test_slicing_function(Simulator, nl):
+def test_slicing_function(Simulator, nl, plt):
     """Test using a pre-slice and a function"""
     N = 300
     f_in = lambda t: [np.cos(3*t), np.sin(3*t)]
@@ -548,11 +513,8 @@ def test_slicing_function(Simulator, nl):
     w = np.column_stack(f_x(v[:, 1]))
     y = sim.data[bp]
 
-    with Plotter(Simulator, nl) as plt:
-        plt.plot(t, y)
-        plt.plot(t, w, ':')
-        plt.savefig('test_connection.test_slicing_function.pdf')
-        plt.close()
+    plt.plot(t, y)
+    plt.plot(t, w, ':')
 
     assert np.allclose(w, y, atol=0.1, rtol=0.0)
 
@@ -577,14 +539,16 @@ def test_set_learning_rule():
         b = nengo.Ensemble(10, 2)
         err = nengo.Connection(a, b)
         n = nengo.Node(output=lambda t, x: t * x, size_in=2)
-        nengo.Connection(a, b, learning_rule=nengo.PES(err))
-        nengo.Connection(a, b, learning_rule=nengo.PES(err),
+        nengo.Connection(a, b, learning_rule_type=nengo.PES(err))
+        nengo.Connection(a, b, learning_rule_type=nengo.PES(err),
                          solver=LstsqL2(weights=True))
-        nengo.Connection(a.neurons, b.neurons, learning_rule=nengo.PES(err))
-        nengo.Connection(a.neurons, b.neurons, learning_rule=nengo.Oja())
+        nengo.Connection(a.neurons, b.neurons,
+                         learning_rule_type=nengo.PES(err))
+        nengo.Connection(a.neurons, b.neurons,
+                         learning_rule_type=nengo.Oja())
 
         with pytest.raises(ValueError):
-            nengo.Connection(n, a, learning_rule=nengo.PES(err))
+            nengo.Connection(n, a, learning_rule_type=nengo.PES(err))
 
 
 def test_set_function(Simulator):
@@ -592,6 +556,7 @@ def test_set_function(Simulator):
         a = nengo.Ensemble(10, 2)
         b = nengo.Ensemble(10, 2)
         c = nengo.Ensemble(10, 1)
+        d = nengo.Node(size_in=1)
 
         # Function only OK from node or ensemble
         with pytest.raises(ValueError):
@@ -601,6 +566,10 @@ def test_set_function(Simulator):
         with pytest.raises(ValueError):
             nengo.Connection(a, b, function=lambda x: x[0] * x[1],
                              transform=np.eye(2))
+
+        # No functions allowed on passthrough nodes
+        with pytest.raises(ValueError):
+            nengo.Connection(d, c, function=lambda x: [1])
 
         # These initial functions have correct dimensionality
         conn_2d = nengo.Connection(a, b)
@@ -661,18 +630,30 @@ def test_nonexistant_prepost(Simulator):
         e1 = nengo.Ensemble(100, 1)
         nengo.Connection(a, e1)
     with pytest.raises(ValueError):
-        nengo.Simulator(model1)
+        Simulator(model1)
 
     with nengo.Network() as model2:
         e2 = nengo.Ensemble(100, 1)
         nengo.Connection(e2, a)
     with pytest.raises(ValueError):
-        nengo.Simulator(model2)
+        Simulator(model2)
 
     with nengo.Network() as model3:
         nengo.Probe(a)
     with pytest.raises(ValueError):
-        nengo.Simulator(model3)
+        Simulator(model3)
+
+
+def test_directneurons(Simulator, nl_nodirect):
+    with nengo.Network():
+        a = nengo.Ensemble(1, 1, neuron_type=nl_nodirect())
+        b = nengo.Ensemble(1, 1, neuron_type=nengo.Direct())
+
+        # cannot connect to or from direct neurons
+        with pytest.raises(ValueError):
+            nengo.Connection(a, b.neurons)
+        with pytest.raises(ValueError):
+            nengo.Connection(b.neurons, a)
 
 
 if __name__ == "__main__":

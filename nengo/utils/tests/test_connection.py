@@ -5,22 +5,17 @@ import pytest
 
 import nengo
 from nengo.utils.connection import target_function
-from nengo.utils.testing import Plotter
 from nengo.utils.distributions import UniformHypersphere
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("dimension", [1, 2, 3, 5])
-def test_target_function(Simulator, nl_nodirect, dimension):
-
-    model = nengo.Network("Connection Helper", seed=12)
-
-    eval_points = UniformHypersphere().sample(
-        1000, dimension, np.random.RandomState(seed=12))
-
+def test_target_function(Simulator, nl_nodirect, plt, dimension, seed, rng):
+    eval_points = UniformHypersphere().sample(1000, dimension, rng=rng)
     targets = eval_points ** 2
 
+    model = nengo.Network("Connection Helper", seed=seed)
     with model:
         model.config[nengo.Ensemble].neuron_type = nl_nodirect()
         inp = nengo.Node(np.sin)
@@ -36,14 +31,10 @@ def test_target_function(Simulator, nl_nodirect, dimension):
         probe1 = nengo.Probe(ens2, synapse=0.03)
         probe2 = nengo.Probe(ens3, synapse=0.03)
 
-    sim = nengo.Simulator(model)
+    sim = Simulator(model)
     sim.run(1)
 
-    with Plotter(Simulator, nl_nodirect) as plt:
-        plt.plot(sim.trange(), sim.data[probe1])
-        plt.plot(sim.trange(), sim.data[probe2], '--')
-        plt.savefig('utils.test_connection.test_target_function'
-                    '_2D.pdf')
-        plt.close()
+    plt.plot(sim.trange(), sim.data[probe1])
+    plt.plot(sim.trange(), sim.data[probe2], '--')
 
     assert np.allclose(sim.data[probe1], sim.data[probe2], atol=0.2)

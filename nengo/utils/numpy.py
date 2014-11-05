@@ -10,6 +10,15 @@ import numpy as np
 maxint = np.iinfo(np.int32).max
 
 
+def broadcast_shape(shape, length):
+    """Pad a shape with ones following standard Numpy broadcasting."""
+    n = len(shape)
+    if n < length:
+        return tuple([1] * (length - n) + list(shape))
+    else:
+        return shape
+
+
 def array(x, dims=None, min_dims=0, **kwargs):
     y = np.array(x, **kwargs)
     dims = max(min_dims, y.ndim) if dims is None else dims
@@ -170,6 +179,13 @@ def norm(x, axis=None, keepdims=False):
     """
     y = np.sqrt(np.sum(x**2, axis=axis))
     return np.expand_dims(y, axis=axis) if keepdims else y
+
+
+def meshgrid_nd(*args):
+    args = [np.asarray(a) for a in args]
+    s = len(args) * (1,)
+    return np.broadcast_arrays(*(
+        a.reshape(s[:i] + (-1,) + s[i + 1:]) for i, a in enumerate(args)))
 
 
 def rms(x, axis=None, keepdims=False):

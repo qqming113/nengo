@@ -71,8 +71,9 @@ class SPA(nengo.Network):
         """
         super(SPA, self).__setattr__(key, value)
         if isinstance(value, Module):
-            value.label = key
-            self._modules[value.label] = value
+            if value.label is None:
+                value.label = key
+            self._modules[key] = value
             for k, (obj, v) in iteritems(value.inputs):
                 if type(v) == int:
                     value.inputs[k] = (obj, self.get_default_vocab(v))
@@ -116,7 +117,7 @@ class SPA(nengo.Network):
 
     def get_module_inputs(self):
         for name, module in iteritems(self._modules):
-            for input in module.inputs.keys():
+            for input in module.inputs:
                 if input == 'default':
                     yield name
                 else:
@@ -139,7 +140,7 @@ class SPA(nengo.Network):
 
     def get_module_outputs(self):
         for name, module in iteritems(self._modules):
-            for output in module.outputs.keys():
+            for output in module.outputs:
                 if output == 'default':
                     yield name
                 else:

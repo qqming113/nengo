@@ -5,8 +5,10 @@ import pytest
 
 import nengo
 import nengo.simulator
-from nengo.builder import (
-    Model, ProdUpdate, Copy, Reset, DotInc, Signal, build_pyfunc)
+from nengo.builder import Model
+from nengo.builder.node import build_pyfunc
+from nengo.builder.operator import Copy, Reset, DotInc, SimNoise
+from nengo.builder.signal import Signal
 from nengo.solvers import LstsqL2nz
 from nengo.utils.compat import range
 from nengo.utils.functions import whitenoise
@@ -64,11 +66,9 @@ def test_signal_indexing_1(RefSimulator):
 
     m = Model(dt=0.001)
     m.operators += [
-        ProdUpdate(
-            Signal(1, name="A1"), three[:1], Signal(0, name="Z0"), one),
-        ProdUpdate(
-            Signal(2.0, name="A2"), three[1:], Signal(0, name="Z1"), two),
-        Reset(tmp),
+        Reset(one), Reset(two), Reset(tmp),
+        DotInc(Signal(1, name="A1"), three[:1], one),
+        DotInc(Signal(2.0, name="A2"), three[1:], two),
         DotInc(
             Signal([[0, 0, 1], [0, 1, 0], [1, 0, 0]], name="A3"), three, tmp),
         Copy(src=tmp, dst=three, as_update=True),
@@ -91,19 +91,20 @@ def test_simple_pyfunc(RefSimulator):
     time = Signal(np.zeros(1), name="time")
     sig = Signal(np.zeros(1), name="sig")
     m = Model(dt=dt)
-    sig_in, sig_out = build_pyfunc(lambda t, x: np.sin(x), True, 1, 1, None, m)
+    sig_in, sig_out = build_pyfunc(m, lambda t, x: np.sin(x), True, 1, 1, None)
     m.operators += [
-        ProdUpdate(Signal(dt), Signal(1), Signal(1), time),
+        Reset(sig),
         DotInc(Signal([[1.0]]), time, sig_in),
-        ProdUpdate(Signal([[1.0]]), sig_out, Signal(0), sig),
+        DotInc(Signal([[1.0]]), sig_out, sig),
+        DotInc(Signal(dt), Signal(1), time, as_update=True),
     ]
 
     sim = RefSimulator(None, model=m)
     for i in range(5):
         sim.step()
-        t = (i + 1) * dt
-        assert np.allclose(sim.signals[time], t)
-        assert np.allclose(sim.signals[sig], np.sin(t - dt))
+        t = i * dt
+        assert np.allclose(sim.signals[sig], np.sin(t))
+        assert np.allclose(sim.signals[time], t + dt)
 
 
 def test_probedict():
@@ -137,7 +138,7 @@ def test_reset(Simulator, nl_nodirect):
         nengo.Connection(square, error, transform=-1)
         err_conn = nengo.Connection(error, square, modulatory=True)
         nengo.Connection(ens, square,
-                         learning_rule=[nengo.PES(err_conn), nengo.BCM()],
+                         learning_rule_type=[nengo.PES(err_conn), nengo.BCM()],
                          solver=LstsqL2nz(weights=True))
 
         square_p = nengo.Probe(square, synapse=0.1)
@@ -157,6 +158,31 @@ def test_reset(Simulator, nl_nodirect):
     assert np.all(sim.trange() == first_t)
     assert np.all(sim.data[square_p] == first_square_p)
     assert np.all(sim.data[err_p] == first_err_p)
+
+
+def test_noise(RefSimulator):
+    """Make sure that we can generate noise properly."""
+
+    n = 1000
+    mean, std = 0.1, 0.8
+    noise = Signal(np.zeros(n), name="noise")
+    dist = nengo.utils.distributions.Gaussian(mean, std)
+
+    m = Model(dt=0.001)
+    m.operators += [Reset(noise), SimNoise(noise, dist)]
+
+    sim = RefSimulator(None, model=m, seed=9)
+    samples = np.zeros((100, n))
+    for i in range(100):
+        sim.step()
+        samples[i] = sim.signals[noise]
+
+    h, xedges = np.histogram(samples.flat, bins=51)
+    x = 0.5 * (xedges[:-1] + xedges[1:])
+    dx = np.diff(xedges)
+    z = 1./np.sqrt(2 * np.pi * std**2) * np.exp(-0.5 * (x - mean)**2 / std**2)
+    y = h / float(h.sum()) / dx
+    assert np.allclose(y, z, atol=0.02)
 
 
 if __name__ == "__main__":

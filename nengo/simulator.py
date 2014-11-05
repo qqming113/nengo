@@ -12,7 +12,9 @@ import logging
 import numpy as np
 
 import nengo.utils.numpy as npext
-from nengo.builder import Model, Builder, SignalDict
+from nengo.builder import Model
+from nengo.builder.signal import SignalDict
+from nengo.cache import get_default_decoder_cache
 from nengo.utils.compat import range
 from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
@@ -95,28 +97,30 @@ class Simulator(object):
             then you can pass in a ``nengo.builder.Model`` instance.
         """
         if model is None:
-            self.model = Model(
-                dt=dt, label="%s, dt=%f" % (network, dt))
+            self.model = Model(dt=dt,
+                               label="%s, dt=%f" % (network, dt),
+                               decoder_cache=get_default_decoder_cache())
         else:
             self.model = model
 
         if network is not None:
             # Build the network into the model
-            Builder.build(network, model=self.model)
+            self.model.build(network)
 
-        # Note: seed is not used right now, but one day...
-        assert seed is None, "Simulator seed not yet implemented"
+        self.model.decoder_cache.shrink()
+
         self.seed = np.random.randint(npext.maxint) if seed is None else seed
+        self.rng = np.random.RandomState(self.seed)
 
         # -- map from Signal.base -> ndarray
         self.signals = SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
         for op in self.model.operators:
-            op.init_signals(self.signals, dt)
+            op.init_signals(self.signals)
 
         self.dg = operator_depencency_graph(self.model.operators)
         self._step_order = [node for node in toposort(self.dg)
                             if hasattr(node, 'make_step')]
-        self._steps = [node.make_step(self.signals, dt)
+        self._steps = [node.make_step(self.signals, dt, self.rng)
                        for node in self._step_order]
 
         # Add built states to the probe dictionary
@@ -153,15 +157,15 @@ class Simulator(object):
             will use the default probe sampling period.
         """
         dt = self.dt if dt is None else dt
-        n_steps = int(self.n_steps * self.dt / dt)
+        n_steps = int(self.n_steps * (self.dt / dt))
         return dt * np.arange(1, n_steps + 1)
 
     def _probe(self):
         """Copy all probed signals to buffers"""
         for probe in self.model.probes:
-            period = (1 if probe.sample_every is None
-                      else int(probe.sample_every / self.dt))
-            if self.n_steps % period == 0:
+            period = (1 if probe.sample_every is None else
+                      probe.sample_every / self.dt)
+            if self.n_steps % period < 1:
                 tmp = self.signals[self.model.sig[probe]['in']].copy()
                 self._probe_outputs[probe].append(tmp)
 

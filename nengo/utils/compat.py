@@ -8,18 +8,22 @@ import numpy as np
 # Only test for Python 2 so that we have less changes for Python 4
 PY2 = sys.version_info[0] == 2
 
-# OrderedDict was introduced in Python 2.7 so for 2.6 we use the PyPI package
+# OrderedDict and Counter were introduced in Python 2.7
 try:
-    from collections import OrderedDict
+    from collections import Counter, OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+    from counter import Counter
+assert Counter
 assert OrderedDict
 
 # If something's changed from Python 2 to 3, we handle that here
 if PY2:
+    import cPickle as pickle
+    import ConfigParser as configparser
     from StringIO import StringIO
     string_types = (str, unicode)
-    int_types = (int, long, np.integer)
+    int_types = (int, long)
     range = xrange
 
     # No iterkeys; use ``for key in dict:`` instead
@@ -29,10 +33,18 @@ if PY2:
     # We have to put this in an exec call because it's a syntax error in Py3+
     exec('def reraise(tp, value, tb):\n raise tp, value, tb')
 
+    def ensure_bytes(s):
+        if isinstance(s, unicode):
+            return s.encode('utf-8')
+        assert isinstance(s, bytes)
+        return s
+
 else:
+    import pickle
+    import configparser
     from io import StringIO
     string_types = (str,)
-    int_types = (int, np.integer)
+    int_types = (int,)
     range = range
 
     # No iterkeys; use ``for key in dict:`` instead
@@ -42,11 +54,20 @@ else:
     def reraise(tp, value, tb):
         raise value.with_traceback(tb)
 
+    def ensure_bytes(s):
+        if isinstance(s, str):
+            s = s.encode('utf-8')
+        assert isinstance(s, bytes)
+        return s
+
+
+assert configparser
+assert pickle
 assert StringIO
 
 
 def is_integer(obj):
-    return isinstance(obj, int_types)
+    return isinstance(obj, int_types + (np.integer,))
 
 
 def is_iterable(obj):

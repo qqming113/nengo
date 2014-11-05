@@ -1,34 +1,8 @@
 from nengo.base import NengoObject, ObjView
-from nengo.neurons import LIF, NeuronTypeParam
+from nengo.neurons import LIF, NeuronTypeParam, Direct
 from nengo.params import (
     Default, DistributionParam, IntParam, ListParam, NumberParam, StringParam)
 from nengo.utils.distributions import Uniform, UniformHypersphere
-
-
-class EnsembleNeuronTypeParam(NeuronTypeParam):
-    def __set__(self, ens, neurons):
-        orig_probeable = list(ens.probeable)
-        self.update_probeable(ens, neurons)
-        try:
-            super(EnsembleNeuronTypeParam, self).__set__(ens, neurons)
-        except:
-            ens.probeable = orig_probeable
-            raise
-
-    def update_probeable(self, ens, neurons):
-        """Update the probeable list."""
-        # We could use a set instead and this would be easier, but we use
-        # the first member of the list as the default probeable, so that
-        # doesn't work.
-        if ens in self.data and self.data[ens] is not None:
-            for attr in self.data[ens].probeable:
-                if attr in ens.probeable:
-                    ens.probeable.remove(attr)
-
-        if neurons is not None:
-            for attr in neurons.probeable:
-                if attr not in ens.probeable:
-                    ens.probeable.append(attr)
 
 
 class Ensemble(NengoObject):
@@ -70,7 +44,7 @@ class Ensemble(NengoObject):
     n_neurons = IntParam(default=None, low=1)
     dimensions = IntParam(default=None, low=1)
     radius = NumberParam(default=1.0, low=1e-10)
-    neuron_type = EnsembleNeuronTypeParam(default=LIF())
+    neuron_type = NeuronTypeParam(default=LIF())
     encoders = DistributionParam(default=UniformHypersphere(surface=True),
                                  sample_shape=('n_neurons', 'dimensions'))
     intercepts = DistributionParam(default=Uniform(-1.0, 1.0),
@@ -162,10 +136,18 @@ class Neurons(object):
 
     @property
     def size_in(self):
+        if isinstance(self.ensemble.neuron_type, Direct):
+            # This will prevent users from connecting/probing Direct neurons
+            # (since there aren't actually any neurons being simulated).
+            return 0
         return self.ensemble.n_neurons
 
     @property
     def size_out(self):
+        if isinstance(self.ensemble.neuron_type, Direct):
+            # This will prevent users from connecting/probing Direct neurons
+            # (since there aren't actually any neurons being simulated).
+            return 0
         return self.ensemble.n_neurons
 
     @property
