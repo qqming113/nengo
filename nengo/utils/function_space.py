@@ -6,22 +6,32 @@ import matplotlib.pyplot as plt
 
 import nengo
 
-# NOTES:
-# range of functions always has dim 1, what about arbitrary dims
-# fourier transform
-# picking evaluation points for the coefficients of the function space? should these be linear
-# combinations of the original basis??
+def generate_functions(function, n, *arg_dists):
+    """
+    Parameters:
 
-def gaussian_functions_1D(n_basis, sigma, radius):
-    centers = np.random.uniform(-radius, radius, (n_basis,))
+    function: callable,
+       the function to be used as a basis, ex. gaussian
+    n: int,
+       number of functions to generate
+    arg_dists: instances of nengo distributions
+       distributions to sample arguments from, ex. mean of a gaussian function
+    """
+
+    # get argument samples to make different functions
+    arg_samples = [arg_dist.sample(n) for arg_dist in arg_dists]
+
     functions = []
-
-    for i in range(n_basis):
+    for i in range(n):
         def func(point, i=i):
-            center = centers[i]
-            return np.exp(-(point - center)**2 / (2 *sigma**2))
+            args = [point]
+            for arg_sample in arg_samples:
+                args.append(arg_sample[i])
+            return function(*args)
         functions.append(func)
+
     return functions
+
 
 def uniform_cube(domain_dim, radius=1, d=0.001):
     """Returns uniformly spaced points in a hypercube.
@@ -38,7 +48,13 @@ def uniform_cube(domain_dim, radius=1, d=0.001):
 
     d: float, optional
        the discretization spacing (a small float)
+
+    Returns:
+    -------
+    ndarray of shape (domain_dim, radius/d)
+
     """
+
     if domain_dim == 1:
         domain_points = np.arange(-radius, radius, d)
         domain_points = domain_points.reshape(domain_points.shape[0], 1)
@@ -50,40 +66,62 @@ def uniform_cube(domain_dim, radius=1, d=0.001):
     return domain_points
 
 
+def function_values(functions, domain_points):
+    """The values of the function on the domain.
+
+    Returns:
+    --------
+    ndarray of shape (n_points, n_functions)"""
+
+    values = np.empty((len(domain_points), len(functions)))
+    for j, point in enumerate(domain_points):
+        for i, function in enumerate(functions):
+            values[j, i] = function(point)
+    return values
+
+
 class Function_Space(object):
     """A helper class for using function spaces in nengo.
 
     Parameters:
     -----------
-    fns: list of callables
-       The functions that will be used as encoder functions for each neuron.
-       There should as many functions as neurons.
+    fn: callable,
+      The function that will be used for tiling the space.
 
-    domain_points: ndarray
-       Array of points that define the domain of the functions
+    domain_dim: int,
+      The dimension of the domain of ``fn``.
 
-    d: float
-       the discretization factor (used in integration)
+    n_functions: int, optional
+      Number of functions used to tile the space.
+
+    n_basis: int, optional
+      Number of orthonormal basis functions to use
+
+    d: float, optional
+       the discretization factor (used in spacing the domain points)
+
+    radius: float, optional
+       2 * radius is the length of a side of the hypercube
+
+    dist_args: list of nengo Distributions
+       The distributions to sample functions from.
+
     """
 
-    def __init__(self, fns, domain_points, d):
-        self.fns = fns
-        self.domain = domain_points
-        self.dx = d ** domain_points.shape[1] # volume element for integration
-        self.n_basis = 20 # default number of basis
+    def __init__(self, fn, domain_dim, dist_args, n_functions=200, n_basis=20,
+                 d=0.001, radius=1):
 
-        self.values = self._function_values(self.fns, self.domain)
-        self.U, self.S, V = np.linalg.svd(self.values)
+        self.domain = uniform_cube(domain_dim, radius, d)
+        self.fns = function_values(generate_functions(fn, n_functions,
+                                                      *dist_args),
+                                   self.domain)
+
+        self.dx = d ** self.domain.shape[1] # volume element for integration
+        self.n_basis = n_basis
+
+        #basis must be orthonormal
+        self.U, self.S, V = np.linalg.svd(self.fns)
         self.basis = self.U[:, :self.n_basis] / np.sqrt(self.dx)
-
-    def _function_values(self, functions, domain_points):
-        """The values of the function on the domain
-           shape (n_points, n_neurons)"""
-        values = np.empty((len(domain_points), len(functions)))
-        for j, point in enumerate(domain_points):
-            for i, function in enumerate(functions):
-                values[j, i] = function(point)
-        return values
 
     def select_top_basis(self, n_basis):
         self.n_basis = n_basis
@@ -96,13 +134,12 @@ class Function_Space(object):
         return self.S
 
     def reconstruct(self, coefficients):
-        """Linear combination of the basis functions according to
-           the coefficients"""
+        """Linear combination of the basis functions"""
         return np.dot(self.basis, coefficients)
 
     def encoder_coeffs(self):
         """Project encoder functions onto basis to get encoder coefficients."""
-        return np.dot(self.values.T, self.basis) * self.dx
+        return np.dot(self.fns.T, self.basis) * self.dx
 
     def signal_coeffs(self, signal):
         """Project a given signal onto basis to get signal coefficients.
@@ -110,29 +147,5 @@ class Function_Space(object):
         signal_coeff = np.dot(signal.T, self.basis) * self.dx
         if signal_coeff.shape[0] == 1:
             signal_coeff = signal_coeff.reshape((self.n_basis,))
+
         return signal_coeff
-
-    #what about other functions besides polys?
-    #are there better ways of generating coefficients?
-    def eval_points(self, n_points):
-        """Return normalized coefficients belonging to functions that are
-        linear combinations of polynomial functions"""
-
-        largest_poly_deg = 3
-
-        #random coefficient matrix
-        coeff_matrix = np.random.uniform(low=-5, high=5,
-                                         size=(n_points, largest_poly_deg))
-
-        func_val = np.empty((len(self.domain), n_points))
-
-        for i in range(n_points):
-            func_val[:, i] = np.polynomial.polynomial.polyval(self.domain.flatten(),
-                                                              coeff_matrix[i, :])
-        func_coeff = self.signal_coeffs(func_val) # size (n_eval_points, n_basis)
-
-        if len(func_coeff.shape) > 1:
-            func_coeff /= np.linalg.norm(func_coeff, axis=1)[:, np.newaxis]
-        else:
-            func_coeff /= np.linalg.norm(func_coeff)
-        return func_coeff
