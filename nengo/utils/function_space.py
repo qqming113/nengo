@@ -24,14 +24,13 @@ def generate_functions(function, n, *arg_dists):
     """
 
     # get argument samples to make different functions
-    arg_samples = [arg_dist.sample(n) for arg_dist in arg_dists]
+    arg_samples = np.array([arg_dist.sample(n) for arg_dist in arg_dists]).T
 
     functions = []
     for i in range(n):
-        def func(point, i=i):
-            args = [point]
-            for arg_sample in arg_samples:
-                args.append(arg_sample[i])
+        def func(points, i=i):
+            args = [points]
+            args.extend(arg_samples[i])
             return function(*args)
         functions.append(func)
 
@@ -65,23 +64,24 @@ def uniform_cube(domain_dim, radius=1, d=0.001):
         domain_points = array(domain_points, min_dims=2)
     else:
         axis = np.arange(-radius, radius, d)
-        # uniformly spaced points in the hypercube of the domain
+        # uniformly spaced points of a hypercube in the domain
         grid = np.meshgrid(*[axis for _ in range(domain_dim)])
         domain_points = np.vstack(map(np.ravel, grid))
     return domain_points
 
 
-def function_values(functions, domain_points):
-    """The values of the function on the domain.
+def function_values(functions, points):
+    """The values of the function on ``points``.
 
     Returns:
     --------
-    ndarray of shape (n_points, n_functions)"""
+    ndarray of shape (n_points * output_dim, n_functions).
+    output_dim is the dimension of the range of the functions"""
 
-    values = np.empty((len(domain_points), len(functions)))
-    for j, point in enumerate(domain_points):
-        for i, function in enumerate(functions):
-            values[j, i] = function(point)
+    range_dim = functions[0](points[0]).shape[0]
+    values = np.empty((len(points) * range_dim, len(functions)))
+    for i, function in enumerate(functions):
+        values[:, i] = function(points).flatten()
     return values
 
 
@@ -92,7 +92,7 @@ class Function_Space(object):
     -----------
     fn: callable,
       The function that will be used for tiling the space.
-
+      Must return an ndarray of shape (n_points, range_dim)
 
     dist_args: list of nengo Distributions
        The distributions to sample functions from.
