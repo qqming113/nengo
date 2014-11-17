@@ -5,6 +5,8 @@ from nengo.utils.function_space import *
 from nengo.utils.distributions import Uniform
 from nengo.utils.numpy import rmse
 
+from scipy.stats. import multivariate_normal
+
 #NOTES:
 # Generalize to functions with range dim more than 1
 # split up function value decoding as a linear combination of the basis
@@ -14,6 +16,10 @@ sigma = 0.2
 
 def gaussian(point, center):
     return np.exp(-(point - center)**2 / (2 * sigma ** 2))
+
+
+def gaussian_2D(point, center):
+    return multivariate_normal(point, center, 0.2)
 
 
 def test_function_repr(Simulator, nl, plt):
