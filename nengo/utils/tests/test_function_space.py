@@ -8,6 +8,7 @@ from nengo.utils.numpy import array
 
 sigma = 0.2
 
+
 def gaussian(points, center):
     return np.exp(-(points - center)**2 / (2 * sigma ** 2))
 
@@ -22,8 +23,8 @@ def gaussian_2D(points, center1, center2):
 @pytest.mark.parametrize("range_dim", [1, 2])
 def test_function_repr(Simulator, nl, plt, range_dim):
 
-    #parameters
-    n_neurons = 2000 * range_dim # number of neurons
+    # parameters
+    n_neurons = 2000 * range_dim  # number of neurons
     domain_dim = 1
     radius = 1
 
@@ -42,7 +43,7 @@ def test_function_repr(Simulator, nl, plt, range_dim):
     input_func = np.sum([func(FS.domain) for func in gaussians], axis=0)
 
     # evaluation points are gaussian bumps functions
-    n_eval_points = 200
+    n_eval_points = 400
     funcs = []
     for _ in range(n_eval_points):
         gaussians = generate_functions(base_func, 4, *dist_args)
@@ -54,10 +55,10 @@ def test_function_repr(Simulator, nl, plt, range_dim):
     signal_coeffs = FS.signal_coeffs(input_func).flatten()
     encoders = FS.encoder_coeffs()
 
-    f_radius = np.linalg.norm(signal_coeffs) # radius to use for ensemble
+    f_radius = np.linalg.norm(signal_coeffs)  # radius to use for ensemble
 
     with nengo.Network() as model:
-        #represents the function
+        # represents the function
         f = nengo.Ensemble(n_neurons=n_neurons, dimensions=FS.n_basis,
                            encoders=encoders, radius=f_radius,
                            eval_points=eval_points, label='f')
@@ -72,7 +73,7 @@ def test_function_repr(Simulator, nl, plt, range_dim):
     reconstruction = FS.reconstruct(sim.data[probe_f][400]).flatten()
     true_f = input_func.flatten()
 
-    plt.saveas = "func_repr_%s.pdf" % range_dim
+    plt.saveas = "func_repr_range_dim_%s.pdf" % range_dim
 
     if range_dim == 1:
         plt.plot(FS.domain, reconstruction, label='model_f')
@@ -98,12 +99,12 @@ def test_function_gen_eval(plt):
 
 def test_uniform_cube():
     points = uniform_cube(2, 1, 0.1)
-    plt.scatter(points[0,:], points[1,:], label='points')
+    plt.scatter(points[0, :], points[1, :], label='points')
 
 
 def test_fourier_basis(plt):
-    #parameters
-    n_neurons = 100 # number of neurons
+    # parameters
+    n_neurons = 100  # number of neurons
     domain_dim = 1
     range_dim = 1
     radius = 1
@@ -116,10 +117,9 @@ def test_fourier_basis(plt):
 
     plt.figure('Testing Fourier Basis')
     plt.plot(FS.domain, true, label='Function')
-    plt.plot(FS.domain,
-             model,
-             label='reconstruction')
+    plt.plot(FS.domain, model, label='reconstruction')
     plt.legend(loc='best')
     plt.savefig('utils.test_function_space.test_fourier_basis.pdf')
 
-    assert np.allclose(true, model, atol=0.2)
+    # crop because of Gibbs phenomenon
+    assert np.allclose(true[200:-200], model[200:-200], atol=0.2)

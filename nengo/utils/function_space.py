@@ -121,7 +121,7 @@ class Function_Space(object):
                                                       *dist_args),
                                    self.domain)
 
-        self.dx = d ** self.domain.shape[1] # volume element for integration
+        self.dx = d ** self.domain.shape[1]  # volume element for integration
         self.n_basis = n_basis
 
     def get_basis(self):
@@ -147,10 +147,9 @@ class Gen_Function_Space(Function_Space):
                                                  n_functions, n_basis,
                                                  d, radius)
 
-        #basis must be orthonormal
+        # basis must be orthonormal
         self.U, self.S, V = np.linalg.svd(self.fns)
         self.basis = self.U[:, :self.n_basis] / np.sqrt(self.dx)
-
 
     def select_top_basis(self, n_basis):
         self.n_basis = n_basis
@@ -174,14 +173,13 @@ class Gen_Function_Space(Function_Space):
         """Project a given signal onto basis to get signal coefficients.
            Size returned is (n_signals, n_basis)"""
         signal = array(signal, min_dims=2)
-        return  np.dot(signal.T, self.basis) * self.dx
-        # if signal_coeff.shape[0] == 1:
-            # signal_coeff = signal_coeff.reshape((self.n_basis,))
-
-        # return signal_coeff
+        return np.dot(signal.T, self.basis) * self.dx
 
 
 class Fourier(Function_Space):
+    """A function space subclass that uses the Fourier basis.
+
+    Note: assumes real-valued data only"""
 
     def __init__(self, fn, domain_dim, dist_args, n_functions=200, n_basis=20,
                  d=0.001, radius=1):
@@ -190,18 +188,16 @@ class Fourier(Function_Space):
                                       n_functions, n_basis,
                                       d, radius)
 
-
     def reconstruct(self, coefficients):
-        """Linear combination of the basis functions"""
+        """inverse fourier transform"""
         return np.fft.irfft(coefficients, len(self.domain))
 
     def encoder_coeffs(self):
-        """Project encoder functions onto basis to get encoder coefficients."""
+        """Apply the fourier transform to the encoder functions."""
         return self.signal_coeffs(self.fns)
 
     def signal_coeffs(self, signal):
-        """Project a given signal onto basis to get signal coefficients.
-           Size returned is (n_signals, n_basis)"""
+        """Apply the Discrete fourier transform to the signal"""
         signal = array(signal, min_dims=2)
+        # throw out higher frequence coefficients
         return np.fft.rfft(signal.T)[:, :self.n_basis]
-        # return np.absolute(X) # compute magnitude
