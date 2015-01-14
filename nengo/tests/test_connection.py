@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import nengo
+import nengo.utils.numpy as npext
 from nengo.connection import ConnectionSolverParam
 from nengo.dists import UniformHypersphere
 from nengo.solvers import LstsqL2
@@ -627,7 +628,7 @@ def test_eval_points_scaling(Simulator, sample, radius, seed, rng):
         con = nengo.Connection(a, b, eval_points=eval_points)
 
     sim = Simulator(model)
-    dists = np.linalg.norm(sim.data[con].eval_points, axis=1)
+    dists = npext.norm(sim.data[con].eval_points, axis=1)
     assert np.all(dists <= radius)
     assert np.any(dists >= 0.9 * radius)
 
