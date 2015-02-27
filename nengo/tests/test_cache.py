@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import errno
 import os
 import timeit
@@ -264,7 +266,7 @@ def calc_relative_timer_diff(t1, t2):
 
 
 class TestCacheBenchmark(object):
-    n_trials = 5
+    n_trials = 25
 
     setup = '''
 import numpy as np
@@ -316,11 +318,17 @@ sim = nengo.Simulator(model)
     }
 
     labels = ["no cache", "cache miss", "cache miss ro", "cache hit"]
+    keys = [l.replace(' ', '_') for l in labels]
+    param_to_axis_label = {
+        'D': "dimensions",
+        'N': "neurons",
+        'M': "evaluation points"
+    }
 
     def time_code(self, code, args):
-        return min(timeit.repeat(
+        return timeit.repeat(
             code['stmt'], self.setup.format(**args) + code['rc'],
-            number=3, repeat=self.n_trials))
+            number=1, repeat=self.n_trials)
 
     def time_all(self, **args):
         return (
@@ -335,7 +343,7 @@ sim = nengo.Simulator(model)
         return args
 
     def plot_result(self, ax, xs, data, label=""):
-        ax.plot(xs, data, label=label)
+        ax.plot(xs, np.median(data, axis=1), label=label)
 
     @pytest.mark.slow
     @pytest.mark.noassertions
@@ -349,12 +357,7 @@ sim = nengo.Simulator(model)
             'N': np.asarray(np.linspace(10, 500, 8), dtype=int),
             'M': np.asarray(np.linspace(750, 2500, 8), dtype=int)
         }[varying_param]
-
-        axis_label = {
-            'D': "dimensions",
-            'N': "neurons",
-            'M': "evaluation points"
-        }[varying_param]
+        axis_label = self.param_to_axis_label[varying_param]
 
         times = [
             self.time_all(**self.get_args(varying_param, v, D=D, N=N, M=M))
@@ -365,7 +368,48 @@ sim = nengo.Simulator(model)
         for i, data in enumerate(zip(*times)):
             self.plot_result(ax, varying, data, label=self.labels[i])
             analytics.add_raw_data(varying_param, varying, axis_label)
-            analytics.add_raw_data(self.labels[i].replace(' ', '_'), data)
+            analytics.add_raw_data(self.keys[i], data)
+
+        plt.xlabel("Number of " + axis_label)
+        plt.ylabel("Build time [s]")
+        plt.legend(loc='best')
+
+    @staticmethod
+    def reject_outliers(data):
+        med = np.median(data)
+        limits = 1.5 * (np.percentile(data, [25, 75]) - med) + med
+        return data[np.logical_and(data > limits[0], data < limits[1])]
+
+    @pytest.mark.compare
+    @pytest.mark.parametrize('varying_param', ['D', 'N', 'M'])
+    def test_compare_cache_benchmark(self, varying_param, analytics_data, plt):
+        stats = pytest.importorskip('scipy.stats')
+
+        d1, d2 = analytics_data
+        assert np.all(d1[varying_param] == d2[varying_param]), \
+            'Cannot compare different parametrizations'
+        axis_label = self.param_to_axis_label[varying_param]
+
+        print("Cache, varying {0}:".format(axis_label))
+        for label, key in zip(self.labels, self.keys):
+            clean_d1 = [self.reject_outliers(d) for d in d1[key]]
+            clean_d2 = [self.reject_outliers(d) for d in d2[key]]
+            diff = [
+                np.median(b) - np.median(a)
+                for a, b in zip(clean_d1, clean_d2)]
+
+            p_values = np.array([
+                2. * stats.mannwhitneyu(a, b)[1]
+                for a, b in zip(clean_d1, clean_d2)])
+            overall_p = 1. - np.prod(1. - p_values)
+            if overall_p < .05:
+                print(
+                    "  Significant change (p <= {p:.3f}). See plots for "
+                    "details.".format(p=np.ceil(overall_p * 1000.) / 1000.))
+            else:
+                print("  {label}: No significant change.".format(label=label))
+
+            plt.plot(d1[varying_param], diff, label=label)
 
         plt.xlabel("Number of " + axis_label)
         plt.ylabel("Build time [s]")
