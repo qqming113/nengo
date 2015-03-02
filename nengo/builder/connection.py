@@ -20,6 +20,10 @@ BuiltConnection = collections.namedtuple(
     'BuiltConnection', ['decoders', 'eval_points', 'transform', 'solver_info'])
 
 
+class ZeroActivityError(RuntimeError):
+    pass
+
+
 def get_eval_points(model, conn, rng):
     if conn.eval_points is None:
         return npext.array(
@@ -51,6 +55,49 @@ def build_linear_system(model, conn, rng):
 
     targets = get_targets(model, conn, eval_points)
     return eval_points, activities, targets
+
+
+def build_decoders(model, conn, transform, rng):
+    encoders = model.params[conn.pre_obj].encoders
+    gain = model.params[conn.pre_obj].gain
+    bias = model.params[conn.pre_obj].bias
+
+    eval_points = get_eval_points(model, conn, rng)
+    targets = get_targets(model, conn, eval_points)
+
+    x = np.dot(eval_points, encoders.T / conn.pre_obj.radius)
+    E = None
+    if conn.solver.weights:
+        E = model.params[conn.post_obj].scaled_encoders.T
+        # account for transform
+        targets = np.dot(targets, transform.T)
+        transform = np.array(1., dtype=np.float64)
+
+    try:
+        decoders, solver_info = solve_for_decoders(
+            conn.solver, conn.pre_obj.neuron_type, gain, bias, x, targets,
+            rng=rng, E=E)
+    except ZeroActivityError:
+        raise ZeroActivityError(
+            "Building %s: 'activites' matrix is all zero for %s. "
+            "This is because no evaluation points fall in the firing "
+            "ranges of any neurons." % (conn, conn.pre_obj))
+
+    return eval_points, decoders, solver_info
+
+
+def solve_for_decoders(
+        solver, neuron_type, gain, bias, x, targets, rng, E=None):
+    activities = neuron_type.rates(x, gain, bias)
+    if np.count_nonzero(activities) == 0:
+        raise ZeroActivityError()
+
+    if solver.weights:
+        decoders, solver_info = solver(activities, targets, rng=rng, E=E)
+    else:
+        decoders, solver_info = solver(activities, targets, rng=rng)
+
+    return decoders, solver_info
 
 
 @Builder.register(Connection)  # noqa: C901
@@ -105,23 +152,14 @@ def build_connection(model, conn):
                                 tag="%s input" % conn))
     elif isinstance(conn.pre_obj, Ensemble):
         # Normal decoded connection
-        eval_points, activities, targets = build_linear_system(
-            model, conn, rng)
+        eval_points, decoders, solver_info = build_decoders(
+            model, conn, transform, rng)
 
-        # Use cached solver, if configured
-        solver = model.decoder_cache.wrap_solver(conn.solver)
         if conn.solver.weights:
-            # account for transform
-            targets = np.dot(targets, transform.T)
             transform = np.array(1., dtype=np.float64)
-
-            decoders, solver_info = solver(
-                activities, targets, rng=rng,
-                E=model.params[conn.post_obj].scaled_encoders.T)
             model.sig[conn]['out'] = model.sig[conn.post_obj.neurons]['in']
             signal_size = model.sig[conn]['out'].size
         else:
-            decoders, solver_info = solver(activities, targets, rng=rng)
             signal_size = conn.size_mid
 
         # Add operator for decoders
