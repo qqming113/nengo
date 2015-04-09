@@ -1,5 +1,6 @@
 import warnings
 
+from copy import deepcopy
 import numpy as np
 
 import nengo
@@ -393,20 +394,72 @@ class Vocabulary(object):
 
         """
 
-        # Make new vocabulary object
-        result = Vocabulary(self.dimensions,
-                            self.randomize,
-                            self.unitary,
-                            self.max_similarity,
-                            self.include_pairs,
-                            self.rng)
+        # Make new subvocabulary object
+        return SubVocabulary(self, keys)
 
-        # Make a copy of the desired keys
-        for key in keys:
-            result.add(key, self[key])
 
-        # Return the result
-        return result
+class SubVocabulary(Vocabulary):
+    # TODO:
+    # - Support vector_pairs?
+    def __init__(self, parent_vocab, keys):
+        self.keys = deepcopy(keys)
+        self.parent = parent_vocab
+        self.key_pairs = []
+        if self.parent.include_pairs:
+            for key in self.keys:
+                for key1 in self.keys:
+                    self.key_pairs.append('%s*%s' % (key, key1))
+
+    def __getitem__(self, key):
+        value = self.parent.pointers.get(key, None)
+        if value is None:
+            warnings.warn("")
+            value = self.parent.__getitem__(key)
+            self.keys.append(key)
+        return value
+
+    @property
+    def include_pairs(self):
+        return self.parent.include_pairs
+
+    @include_pairs.setter
+    def include_pairs(self, value):
+        self.parent.include_pairs(value)
+        if value:
+            for key in self.keys:
+                for key1 in self.keys:
+                    self.key_pairs.append('%s*%s' % (key, key1))
+        else:
+            self.key_pairs = None
+
+    @property
+    def dimensions(self):
+        return self.parent.dimensions
+
+    @property
+    def randomize(self):
+        return self.parent.unitary
+
+    @property
+    def unitary(self):
+        return self.parent.unitary
+
+    @property
+    def max_similarity(self):
+        return self.parent.max_similarity
+
+    @property
+    def rng(self):
+        return self.parent.rng
+
+    def add(self, key, p):
+        self.parent.add(key, p)
+        self.keys.append(key)
+        for k in self.keys:
+            self.key_pairs.append('%s*%s' * (k, key))
+
+    def create_subset(self, keys):
+        return self.parent.create_subset(keys)
 
 
 class VocabularyParam(nengo.params.Parameter):
