@@ -402,10 +402,18 @@ class SubVocabulary(Vocabulary):
     # TODO:
     # - Support vector_pairs?
     def __init__(self, parent_vocab, keys):
-        self.keys = deepcopy(keys)
+        super(SubVocabulary, self).__init__(parent_vocab.dimensions,
+                                            parent_vocab.randomize,
+                                            parent_vocab.unitary,
+                                            parent_vocab.max_similarity,
+                                            parent_vocab.include_pairs,
+                                            parent_vocab.rng)
+
         self.parent = parent_vocab
-        self.key_pairs = []
+
+        self.keys = deepcopy(keys)
         if self.parent.include_pairs:
+            self.key_pairs = []
             for key in self.keys:
                 for key1 in self.keys:
                     self.key_pairs.append('%s*%s' % (key, key1))
@@ -431,26 +439,6 @@ class SubVocabulary(Vocabulary):
                     self.key_pairs.append('%s*%s' % (key, key1))
         else:
             self.key_pairs = None
-
-    @property
-    def dimensions(self):
-        return self.parent.dimensions
-
-    @property
-    def randomize(self):
-        return self.parent.unitary
-
-    @property
-    def unitary(self):
-        return self.parent.unitary
-
-    @property
-    def max_similarity(self):
-        return self.parent.max_similarity
-
-    @property
-    def rng(self):
-        return self.parent.rng
 
     def add(self, key, p):
         self.parent.add(key, p)
