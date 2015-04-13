@@ -17,14 +17,11 @@ def Product(n_neurons, dimensions, input_magnitude=1, config=None, net=None):
             [[1, 1], [1, -1], [-1, 1], [-1, -1]])
 
     with nested(net, config):
-        net.A = nengo.Node(size_in=dimensions, label="A")
-        net.B = nengo.Node(size_in=dimensions, label="B")
-
         net.product = EnsembleArray(n_neurons, n_ensembles=dimensions,
                                     ens_dimensions=2,
                                     radius=input_magnitude * np.sqrt(2))
-        nengo.Connection(net.A, net.product.input[::2], synapse=None)
-        nengo.Connection(net.B, net.product.input[1::2], synapse=None)
+        net.A = net.product.input[0::2]
+        net.B = net.product.input[1::2]
         net.output = net.product.add_output('product', lambda x: x[0] * x[1])
 
     return net
