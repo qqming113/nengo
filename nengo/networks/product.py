@@ -19,7 +19,6 @@ def Product(n_neurons, dimensions, input_magnitude=1, config=None, net=None):
     with nested(net, config):
         net.A = nengo.Node(size_in=dimensions, label="A")
         net.B = nengo.Node(size_in=dimensions, label="B")
-        net.output = nengo.Node(size_in=dimensions, label="output")
 
         net.product = EnsembleArray(n_neurons, n_ensembles=dimensions,
                                     ens_dimensions=2,
