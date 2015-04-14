@@ -96,6 +96,7 @@ class EnsembleArray(nengo.Network):
                 warnings.warn("Creating neuron nodes in an EnsembleArray"
                               " with Direct neurons")
 
+        self.output_sizes = {}
         self.add_output('output', function=None)
 
     @with_self
@@ -122,9 +123,13 @@ class EnsembleArray(nengo.Network):
                 "'function' must be a callable, list of callables, or 'None'")
 
         output = nengo.Node(output=None, size_in=sizes.sum(), label=name)
+        if hasattr(self, name):
+            raise ValueError("'%s' already has an output named '%s'" %
+                             (self, name))
         setattr(self, name, output)
+        self.output_sizes[name] = sizes
 
-        indices = np.zeros(len(sizes) + 1)
+        indices = np.zeros(len(sizes) + 1, dtype=int)
         indices[1:] = np.cumsum(sizes)
         for i, e in enumerate(self.ea_ensembles):
             nengo.Connection(
