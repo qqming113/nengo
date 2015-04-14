@@ -233,6 +233,155 @@ def remove_passthrough_nodes(objs, connections,  # noqa: C901
     return result_objs, result_conn
 
 
+def split_ensemblearrays(network):
+    for net in network.networks:
+        split_ensemblearrays(net)
+
+        if isinstance(net, nengo.networks.EnsembleArray):
+            split_ensemblearray(net, network)
+
+
+def split_ensemblearray(array, parent):
+    # create_connection_fn = _create_replacement_connection
+    if not isinstance(array, nengo.networks.EnsembleArray):
+        raise ValueError("'array' must be an EnsembleArray")
+    if not isinstance(parent, nengo.Network) or array not in parent.networks:
+        raise ValueError("'parent' must be parent network")
+
+    inputs, outputs = find_all_io(parent.connections + array.connections)
+    n_splits = 2
+    n_ensembles = array.n_ensembles
+    D = array.dimensions_per_ensemble
+
+    # assert no extra connections
+    if array.n_ensembles != len(array.ea_ensembles):
+        raise ValueError("Number of ensembles does not match")
+
+    ea_ensemble_set = set(array.ea_ensembles)
+    if len(outputs[array.input]) != n_ensembles or (
+            set(c.post for c in outputs[array.input]) != ea_ensemble_set):
+        raise ValueError("Extra connections from array input")
+
+    for output in (getattr(array, name) for name in array.output_sizes):
+        if len(inputs[output]) != n_ensembles or (
+                set(c.pre for c in inputs[output]) != ea_ensemble_set):
+            raise ValueError("Extra connections to array output")
+
+    # equally distribute ensembles between partitions
+    sizes = np.zeros(n_splits, dtype=int)
+    j = 0
+    for i in range(n_ensembles):
+        sizes[j] += 1
+        j = (j + 1) % len(sizes)
+
+    indices = np.zeros(len(sizes) + 1, dtype=int)
+    indices[1:] = np.cumsum(sizes)
+
+    # make new input nodes
+    with array:
+        new_inputs = [nengo.Node(size_in=size * D,
+                                 label="%s%d" % (array.input.label, i))
+                      for i, size in enumerate(sizes)]
+
+    # remove connections from old input node
+    for conn in array.connections[:]:
+        if conn.pre_obj is array.input and conn.post in array.ea_ensembles:
+            array.connections.remove(conn)
+
+    # make connections from new input nodes to ensembles
+    for i, inp in enumerate(new_inputs):
+        i0, i1 = indices[i], indices[i+1]
+        for j, ens in enumerate(array.ea_ensembles[i0:i1]):
+            with array:
+                nengo.Connection(inp[j*D:(j+1)*D], ens, synapse=None)
+
+    # make connections into EnsembleArray
+    for c_in in inputs[array.input]:
+        # remove connection to old node
+        parent.connections.remove(c_in)
+
+        # make connections to new nodes
+        for i, inp in enumerate(new_inputs):
+            transform = np.zeros((c_in.size_mid, inp.size_in))
+            i0, i1 = indices[i], indices[i+1]
+            transform[i0:i1, :] = np.eye(inp.size_in)
+
+            with parent:
+                nengo.Connection(
+                    c_in.pre, inp,
+                    synapse=c_in.synapse,
+                    function=c_in.function,
+                    transform=c_in.transform * transform.T)
+
+    # remove old input node
+    array.nodes.remove(array.input)
+    array.input = None
+
+    # loop over outputs
+    for output_name in array.output_sizes:
+        old_output = getattr(array, output_name)
+        output_sizes = array.output_sizes[output_name]
+
+        # make new output nodes
+        new_outputs = []
+        for i in range(n_splits):
+            i0, i1 = indices[i], indices[i+1]
+            i_sizes = output_sizes[i0:i1]
+            with array:
+                new_output = nengo.Node(size_in=sum(i_sizes),
+                                        label="%s%d" % (old_output.label, i))
+            new_outputs.append(new_output)
+
+            i_inds = np.zeros(len(i_sizes) + 1, dtype=int)
+            i_inds[1:] = np.cumsum(i_sizes)
+
+            # connect ensembles to new output node
+            for j, e in enumerate(array.ea_ensembles[i0:i1]):
+                old_conns = [c for c in array.connections
+                             if c.pre is e and c.post_obj is old_output]
+                assert len(old_conns) == 1
+                old_conn = old_conns[0]
+
+                # remove old connection from ensemble
+                array.connections.remove(old_conn)
+
+                # add new connection from ensemble
+                j0, j1 = i_inds[j], i_inds[j+1]
+                with array:
+                    nengo.Connection(
+                        e, new_output[j0:j1],
+                        synapse=old_conn.synapse,
+                        function=old_conn.function,
+                        transform=old_conn.transform)
+
+        # connect new outputs to external model
+        output_sizes = [n.size_out for n in new_outputs]
+        output_inds = np.zeros(len(output_sizes) + 1, dtype=int)
+        output_inds[1:] = np.cumsum(output_sizes)
+
+        for c_out in outputs[old_output]:
+            assert c_out.function is None
+
+            # remove connection to old node
+            parent.connections.remove(c_out)
+
+            # add connections to new nodes
+            for i, out in enumerate(new_outputs):
+                i0, i1 = output_inds[i], output_inds[i+1]
+                transform = np.zeros((out.size_out, c_out.size_in))
+                transform[:, i0:i1] = np.eye(out.size_out)
+
+                with parent:
+                    nengo.Connection(
+                        out, c_out.post,
+                        synapse=c_out.synapse,
+                        transform=c_out.transform * transform.T)
+
+        # remove old output node
+        array.nodes.remove(old_output)
+        setattr(array, output_name, None)
+
+
 def find_all_io(connections):
     """Build up a list of all inputs and outputs for each object"""
     inputs = collections.defaultdict(list)
