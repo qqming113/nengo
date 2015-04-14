@@ -249,7 +249,9 @@ def split_ensemblearray(array, parent):
         raise ValueError("'parent' must be parent network")
 
     inputs, outputs = find_all_io(parent.connections + array.connections)
+
     n_splits = 2
+    preserve_zeros = True
     n_ensembles = array.n_ensembles
     D = array.dimensions_per_ensemble
 
@@ -295,23 +297,43 @@ def split_ensemblearray(array, parent):
             with array:
                 nengo.Connection(inp[j*D:(j+1)*D], ens, synapse=None)
 
+    # if input was probed, remove the probe and create new ones
+    for probe in parent.probes[:]:
+        if probe.target is array.input:
+            parent.probes.remove(probe)
+
+            with parent:
+                for i, inp in enumerate(new_inputs):
+                    nengo.Probe(
+                        inp, label="%s%d" % (probe.label, i),
+                        synapse=probe.synapse)
+
     # make connections into EnsembleArray
     for c_in in inputs[array.input]:
+
         # remove connection to old node
         parent.connections.remove(c_in)
 
+        pre_outputs = outputs[c_in.pre_obj]
+        pre_outputs.remove(c_in)
+
+        transform = full_transform(c_in, False, True, False)
+
         # make connections to new nodes
         for i, inp in enumerate(new_inputs):
-            transform = np.zeros((c_in.size_mid, inp.size_in))
             i0, i1 = indices[i], indices[i+1]
-            transform[i0:i1, :] = np.eye(inp.size_in)
+            sub_transform = transform[i0*D:i1*D, :]
 
-            with parent:
-                nengo.Connection(
-                    c_in.pre, inp,
-                    synapse=c_in.synapse,
-                    function=c_in.function,
-                    transform=c_in.transform * transform.T)
+            if preserve_zeros or np.any(sub_transform):
+                with parent:
+                    new_conn = nengo.Connection(
+                        c_in.pre, inp,
+                        synapse=c_in.synapse,
+                        function=c_in.function,
+                        transform=sub_transform)
+
+                inputs[inp].append(new_conn)
+                pre_outputs.append(new_conn)
 
     # remove old input node
     array.nodes.remove(array.input)
@@ -354,6 +376,17 @@ def split_ensemblearray(array, parent):
                         function=old_conn.function,
                         transform=old_conn.transform)
 
+        # if output was probed, remove the probe and create new ones
+        for probe in parent.probes[:]:
+            if probe.target is old_output:
+                parent.probes.remove(probe)
+
+                with parent:
+                    for j, out in enumerate(new_outputs):
+                        nengo.Probe(
+                            out, label="%s%d" % (probe.label, j),
+                            synapse=probe.synapse)
+
         # connect new outputs to external model
         output_sizes = [n.size_out for n in new_outputs]
         output_inds = np.zeros(len(output_sizes) + 1, dtype=int)
@@ -365,17 +398,25 @@ def split_ensemblearray(array, parent):
             # remove connection to old node
             parent.connections.remove(c_out)
 
+            post_inputs = inputs[c_out.post_obj]
+            post_inputs.remove(c_out)
+
+            transform = full_transform(c_out, True, True, False)
+
             # add connections to new nodes
             for i, out in enumerate(new_outputs):
                 i0, i1 = output_inds[i], output_inds[i+1]
-                transform = np.zeros((out.size_out, c_out.size_in))
-                transform[:, i0:i1] = np.eye(out.size_out)
+                sub_transform = transform[:, i0:i1]
 
-                with parent:
-                    nengo.Connection(
-                        out, c_out.post,
-                        synapse=c_out.synapse,
-                        transform=c_out.transform * transform.T)
+                if preserve_zeros or np.any(sub_transform):
+                    with parent:
+                        new_conn = nengo.Connection(
+                            out, c_out.post,
+                            synapse=c_out.synapse,
+                            transform=sub_transform)
+
+                    outputs[out].append(new_conn)
+                    post_inputs.append(new_conn)
 
         # remove old output node
         array.nodes.remove(old_output)
