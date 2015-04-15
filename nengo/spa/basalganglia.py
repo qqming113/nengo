@@ -16,13 +16,16 @@ class BasalGanglia(Module):
     input_synapse : float
         The synaptic filter on all input connections
     """
-    def __init__(self, actions, input_synapse=0.002,
-                 label=None, seed=None, add_to_container=None):
+    def __init__(self, actions, input_synapse=0.002, weights={},
+                 label=None, seed=None, add_to_container=None,
+                 split_GPi_SNr=False):
         self.actions = actions
         self.input_synapse = input_synapse
         self._bias = None
         Module.__init__(self, label, seed, add_to_container)
-        nengo.networks.BasalGanglia(dimensions=self.actions.count, net=self)
+        nengo.networks.BasalGanglia(dimensions=self.actions.count, net=self,
+                                    weights=weights,
+                                    split_GPi_SNr=split_GPi_SNr)
 
     @property
     def bias(self):
