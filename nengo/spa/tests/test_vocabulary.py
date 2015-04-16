@@ -214,4 +214,4 @@ def test_subset():
     # Test transform_to between subsets (should be identity transform)
     t = v1.transform_to(v2)
 
-    assert v2.parse('A').compare(np.dot(t, v1.parse('A').v)) == 1.0
+    assert v2.parse('A').compare(np.dot(t, v1.parse('A').v)) >= 0.99999999
