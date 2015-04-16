@@ -184,7 +184,7 @@ def test_subset():
     assert v2['A'] == v1['A']
     assert v2['C'] == v1['C']
     assert v2['E'] == v1['E']
-    assert v2.parent == v1.parent == v1
+    assert v2.parent == v1
 
     # Test extending the subset vocabulary
     v2.extend_subset(['B', 'D'])
