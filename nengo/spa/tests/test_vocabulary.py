@@ -116,6 +116,41 @@ def test_transform(rng):
     assert v2.parse('A').compare(np.dot(t, A.v)) > 0.95
     assert v2.parse('B').compare(np.dot(t, B.v)) > 0.95
 
+    # Test transform_to when either vocabulary is read-only
+    v1.parse('D')
+    v2.parse('E')
+
+    # When both are read-only, transform_to shouldn't add any new items to
+    # either and the transform should be using keys that are the intersection
+    # of both vocabularies
+    v1.read_only = True
+    v2.read_only = True
+
+    t = v1.transform_to(v2)
+
+    assert v1.keys == ['A', 'B', 'C', 'D']
+    assert v2.keys == ['A', 'C', 'B', 'E']
+
+    # When one is read-only, transform_to should add any new items to the non
+    # read-only vocabulary
+    v1.read_only = False
+    v2.read_only = True
+
+    t = v1.transform_to(v2)
+
+    assert v1.keys == ['A', 'B', 'C', 'D', 'E']
+    assert v2.keys == ['A', 'C', 'B', 'E']
+
+    # When one is read-only, transform_to should add any new items to the non
+    # read-only vocabulary
+    v1.read_only = True
+    v2.read_only = False
+
+    t = v1.transform_to(v2)
+
+    assert v1.keys == ['A', 'B', 'C', 'D', 'E']
+    assert v2.keys == ['A', 'C', 'B', 'E', 'D']
+
 
 def test_prob_cleanup():
     v = Vocabulary(64)
@@ -127,3 +162,56 @@ def test_prob_cleanup():
     assert 0.999 > v.prob_cleanup(0.4, 1000) > 0.997
     assert 0.99 > v.prob_cleanup(0.4, 10000) > 0.97
     assert 0.9 > v.prob_cleanup(0.4, 100000) > 0.8
+
+
+def test_read_only():
+    v1 = Vocabulary(32)
+    v1.parse('A+B+C')
+
+    v1.read_only = True
+
+    with pytest.raises(ValueError):
+        v1.parse('D')
+
+
+def test_subset():
+    v1 = Vocabulary(32)
+    v1.parse('A+B+C+D+E+F+G')
+
+    # Test creating a vocabulary subset
+    v2 = v1.create_subset(['A', 'C', 'E'])
+    assert v2.keys == ['A', 'C', 'E']
+    assert v2['A'] == v1['A']
+    assert v2['C'] == v1['C']
+    assert v2['E'] == v1['E']
+    assert v2.parent == v1.parent == v1
+
+    # Test extending the subset vocabulary
+    v2.extend_subset(['B', 'D'])
+    assert v2.keys == ['A', 'C', 'E', 'B', 'D']
+    assert v2['B'] == v1['B']
+    assert v2['D'] == v1['D']
+
+    # Test parsing additional items into the subset vocabulary
+    v2.parse('F')
+    assert v2.keys == ['A', 'C', 'E', 'B', 'D', 'F']
+    assert v2['F'] == v1['F']
+
+    v2.parse('H')
+    assert v2.keys == ['A', 'C', 'E', 'B', 'D', 'F', 'H']
+    assert v1.keys == ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    assert v2['H'] == v1['H']
+
+    # Test creating a subset from a subset (it should create off the parent)
+    v3 = v2.create_subset(['B', 'D'])
+    assert v3.parent == v2.parent == v1
+
+    v3.include_pairs = True
+    assert v3.key_pairs == ['B*D']
+    assert not v1.include_pairs
+    assert not v2.include_pairs
+
+    # Test transform_to between subsets (should be identity transform)
+    t = v1.transform_to(v2)
+
+    assert v2.parse('A').compare(np.dot(t, v1.parse('A').v)) == 1.0

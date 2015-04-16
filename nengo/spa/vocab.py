@@ -1,6 +1,5 @@
 import warnings
 
-from copy import deepcopy
 import numpy as np
 
 import nengo
@@ -82,6 +81,10 @@ class Vocabulary(object):
         self.include_pairs = include_pairs
         self._identity = None
         self.rng = rng
+        self.read_only = False
+
+        # The parent of a non-subset vocabulary is itself
+        self.parent = self
 
     def create_pointer(self, attempts=100, unitary=False):
         """Create a new semantic pointer.
@@ -142,6 +145,10 @@ class Vocabulary(object):
 
         The pointer value can be a SemanticPointer or a vector.
         """
+        if self.read_only:
+            raise ValueError(("Cannot add semantic pointer '%s' to read-only" +
+                              " vocabulary.") % key)
+
         if not key[0].isupper():
             raise KeyError('Semantic pointers must begin with a capital')
         if not isinstance(p, pointer.SemanticPointer):
@@ -329,18 +336,30 @@ class Vocabulary(object):
             terms in this list that do not exist in the Vocabularies will
             be created.
         """
-        if keys is None:
-            keys = list(self.keys)
-            for k in other.keys:
-                if k not in keys:
-                    keys.append(k)
+        # If the parent vocabs of self and other are the same, then no
+        # transform is needed between the two vocabularies, so return an
+        # identity matrix.
+        if self.parent == other.parent:
+            return np.eye(self.dimensions)
+        else:
+            if keys is None:
+                keys1 = set(self.keys)
+                keys2 = set(other.keys)
+                if self.read_only and other.read_only:
+                    keys = list(keys1.intersection(keys2))
+                elif self.read_only:
+                    keys = list(self.keys)
+                elif other.read_only:
+                    keys = list(other.keys)
+                else:
+                    keys = list(keys1.union(keys2))
 
-        t = np.zeros((other.dimensions, self.dimensions), dtype=float)
-        for k in keys:
-            a = self[k].v
-            b = other[k].v
-            t += np.outer(b, a)
-        return t
+            t = np.zeros((other.dimensions, self.dimensions), dtype=float)
+            for k in keys:
+                a = self[k].v
+                b = other[k].v
+                t += np.outer(b, a)
+            return t
 
     def prob_cleanup(self, similarity, vocab_size, steps=10000):
         """Estimate the chance of successful cleanup.
@@ -393,60 +412,53 @@ class Vocabulary(object):
             new vocabulary.
 
         """
+        # Make new VocabularySubset object
+        return VocabularySubset(self, keys)
 
-        # Make new subvocabulary object
-        return SubVocabulary(self, keys)
 
-
-class SubVocabulary(Vocabulary):
-    # TODO:
-    # - Support vector_pairs?
+class VocabularySubset(Vocabulary):
     def __init__(self, parent_vocab, keys):
-        super(SubVocabulary, self).__init__(parent_vocab.dimensions,
-                                            parent_vocab.randomize,
-                                            parent_vocab.unitary,
-                                            parent_vocab.max_similarity,
-                                            parent_vocab.include_pairs,
-                                            parent_vocab.rng)
+        # Initialize vocabulary subset with same parameters as parent vocab
+        super(VocabularySubset, self).__init__(parent_vocab.dimensions,
+                                               parent_vocab.randomize,
+                                               parent_vocab.unitary,
+                                               parent_vocab.max_similarity,
+                                               parent_vocab.include_pairs,
+                                               parent_vocab.rng)
 
         self.parent = parent_vocab
 
-        self.keys = deepcopy(keys)
-        if self.parent.include_pairs:
-            self.key_pairs = []
-            for key in self.keys:
-                for key1 in self.keys:
-                    self.key_pairs.append('%s*%s' % (key, key1))
+        # Make a copy of the key list
+        self.parse('+'.join(keys))
+        self.read_only = self.parent.read_only
+
+    def create_pointer(self, attempts=100, unitary=False):
+        return self.parent.create_pointer(attempts, unitary)
 
     def __getitem__(self, key):
-        value = self.parent.pointers.get(key, None)
-        if value is None:
-            warnings.warn("")
-            value = self.parent.__getitem__(key)
-            self.keys.append(key)
+        # Get the item from the parent vocabulary, if it is not in the parent
+        # vocabulary, add it to the parent vocabulary
+        value = self.parent.__getitem__(key)
+
+        if key not in self.keys:
+            self.add(key, value)
         return value
 
-    @property
-    def include_pairs(self):
-        return self.parent.include_pairs
-
-    @include_pairs.setter
-    def include_pairs(self, value):
-        self.parent.include_pairs(value)
-        if value:
-            for key in self.keys:
-                for key1 in self.keys:
-                    self.key_pairs.append('%s*%s' % (key, key1))
-        else:
-            self.key_pairs = None
-
     def add(self, key, p):
-        self.parent.add(key, p)
-        self.keys.append(key)
-        for k in self.keys:
-            self.key_pairs.append('%s*%s' * (k, key))
+        if key not in self.parent.keys:
+            self.parent.add(key, p)
+        else:
+            if p != self.parent.pointers[key]:
+                raise ValueError('')
+
+        super(VocabularySubset, self).add(key, self.parent.pointers[key])
+
+    def extend_subset(self, keys):
+        # Extends the subset with keys (shortcut for using the parse function)
+        self.parse('+'.join(keys))
 
     def create_subset(self, keys):
+        self.extend_subset(keys)
         return self.parent.create_subset(keys)
 
 
