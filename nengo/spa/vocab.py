@@ -82,9 +82,7 @@ class Vocabulary(object):
         self._identity = None
         self.rng = rng
         self.read_only = False
-
-        # The parent of a non-subset vocabulary is itself
-        self.parent = self
+        self.parent = None
 
     def create_pointer(self, attempts=100, unitary=False):
         """Create a new semantic pointer.
@@ -339,7 +337,10 @@ class Vocabulary(object):
         # If the parent vocabs of self and other are the same, then no
         # transform is needed between the two vocabularies, so return an
         # identity matrix.
-        if self.parent == other.parent:
+        my_parent = self if self.parent is None else self.parent
+        other_parent = other if other.parent is None else other.parent
+
+        if my_parent == other_parent:
             return np.eye(self.dimensions)
         else:
             if keys is None:
