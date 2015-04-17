@@ -111,7 +111,5 @@ class AssociativeMemory(Module):
             if threshold_output:
                 self.thresholded_utilities = self.am.thresholded_utilities
 
-        if isinstance(input_vocab, Vocabulary):
-            self.inputs = dict(default=(self.input, input_vocab))
-        if isinstance(output_vocab, Vocabulary):
-            self.outputs = dict(default=(self.output, output_vocab))
+        self.inputs = dict(default=(self.input, input_vocab))
+        self.outputs = dict(default=(self.output, output_vocab))
