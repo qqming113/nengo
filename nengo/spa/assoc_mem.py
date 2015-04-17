@@ -1,6 +1,5 @@
 from nengo.networks.assoc_mem import AssociativeMemory as AssocMem
 from nengo.spa.module import Module
-from nengo.spa.vocab import Vocabulary
 
 
 class AssociativeMemory(Module):
