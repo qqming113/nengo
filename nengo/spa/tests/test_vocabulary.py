@@ -199,3 +199,30 @@ def test_subset():
     t = v1.transform_to(v2)
 
     assert v2.parse('A').compare(np.dot(t, v1.parse('A').v)) >= 0.99999999
+
+
+def test_extend():
+    v = Vocabulary(16)
+    v.parse('A+B')
+    assert v.keys == ['A', 'B']
+    assert not v.unitary
+
+    # Test extending the vocabulary
+    v.extend(['C', 'D'])
+    assert v.keys == ['A', 'B', 'C', 'D']
+
+    # Test extending the vocabulary with various unitary options
+    v.extend(['E', 'F'], unitary=['E'])
+    assert v.keys == ['A', 'B', 'C', 'D', 'E', 'F']
+    assert v.unitary == ['E']
+
+    # Check if 'E' is unitary
+    fft_val = np.fft.fft(v['E'].v)
+    fft_imag = fft_val.imag
+    fft_real = fft_val.real
+    fft_norms = np.sqrt(fft_imag ** 2 + fft_real ** 2)
+    assert np.allclose(fft_norms, np.ones(16))
+
+    v.extend(['G', 'H'], unitary=True)
+    assert v.keys == ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    assert v.unitary == ['E', 'G', 'H']

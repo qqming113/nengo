@@ -400,7 +400,7 @@ class Vocabulary(object):
         pcorrect = (1 - perror1) ** vocab_size
         return pcorrect
 
-    def extend(self, keys):
+    def extend(self, keys, unitary=False):
         """Extends the vocabulary with additional keys.
 
         Creates and adds the semantic pointers listed in keys to the
@@ -412,7 +412,20 @@ class Vocabulary(object):
             List of semantic pointer names to be added to the vocabulary.
 
         """
-        self.parse('+'.join(keys))
+        if is_iterable(unitary):
+            if is_iterable(self.unitary):
+                self.unitary.extend(unitary)
+            else:
+                self.unitary = list(unitary)
+        elif unitary:
+            if is_iterable(self.unitary):
+                self.unitary.extend(keys)
+            else:
+                self.unitary = list(keys)
+
+        for key in keys:
+            if key not in self.keys:
+                self[key]
 
     def create_subset(self, keys):
         """Returns the subset of this vocabulary.
