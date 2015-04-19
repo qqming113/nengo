@@ -400,6 +400,20 @@ class Vocabulary(object):
         pcorrect = (1 - perror1) ** vocab_size
         return pcorrect
 
+    def extend(self, keys):
+        """Extends the vocabulary with additional keys.
+
+        Creates and adds the semantic pointers listed in keys to the
+        vocabulary.
+
+        Parameters
+        ----------
+        keys : list of strings
+            List of semantic pointer names to be added to the vocabulary.
+
+        """
+        self.parse('+'.join(keys))
+
     def create_subset(self, keys):
         """Returns the subset of this vocabulary.
 
@@ -413,54 +427,25 @@ class Vocabulary(object):
             new vocabulary.
 
         """
-        # Make new VocabularySubset object
-        return VocabularySubset(self, keys)
+        # Make new Vocabulary object
+        subset = Vocabulary(self.dimensions, self.randomize, self.unitary,
+                            self.max_similarity, self.include_pairs,
+                            self.rng)
 
+        # Copy over the new keys
+        for key in keys:
+            subset.add(key, self.pointers[key])
 
-class VocabularySubset(Vocabulary):
-    def __init__(self, parent_vocab, keys):
-        # Initialize vocabulary subset with same parameters as parent vocab
-        super(VocabularySubset, self).__init__(parent_vocab.dimensions,
-                                               parent_vocab.randomize,
-                                               parent_vocab.unitary,
-                                               parent_vocab.max_similarity,
-                                               parent_vocab.include_pairs,
-                                               parent_vocab.rng)
-
-        self.parent = parent_vocab
-
-        # Make a copy of the key list
-        self.parse('+'.join(keys))
-        self.read_only = self.parent.read_only
-
-    def create_pointer(self, attempts=100, unitary=False):
-        return self.parent.create_pointer(attempts, unitary)
-
-    def __getitem__(self, key):
-        # Get the item from the parent vocabulary, if it is not in the parent
-        # vocabulary, add it to the parent vocabulary
-        value = self.parent.__getitem__(key)
-
-        if key not in self.keys:
-            self.add(key, value)
-        return value
-
-    def add(self, key, p):
-        if key not in self.parent.keys:
-            self.parent.add(key, p)
+        # Assign the parent
+        if self.parent is not None:
+            subset.parent = self.parent
         else:
-            if p != self.parent.pointers[key]:
-                raise ValueError('')
+            subset.parent = self
 
-        super(VocabularySubset, self).add(key, self.parent.pointers[key])
+        # Make the subset read only
+        subset.read_only = True
 
-    def extend_subset(self, keys):
-        # Extends the subset with keys (shortcut for using the parse function)
-        self.parse('+'.join(keys))
-
-    def create_subset(self, keys):
-        self.extend_subset(keys)
-        return self.parent.create_subset(keys)
+        return subset
 
 
 class VocabularyParam(nengo.params.Parameter):

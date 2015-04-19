@@ -186,28 +186,12 @@ def test_subset():
     assert v2['E'] == v1['E']
     assert v2.parent == v1
 
-    # Test extending the subset vocabulary
-    v2.extend_subset(['B', 'D'])
-    assert v2.keys == ['A', 'C', 'E', 'B', 'D']
-    assert v2['B'] == v1['B']
-    assert v2['D'] == v1['D']
-
-    # Test parsing additional items into the subset vocabulary
-    v2.parse('F')
-    assert v2.keys == ['A', 'C', 'E', 'B', 'D', 'F']
-    assert v2['F'] == v1['F']
-
-    v2.parse('H')
-    assert v2.keys == ['A', 'C', 'E', 'B', 'D', 'F', 'H']
-    assert v1.keys == ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-    assert v2['H'] == v1['H']
-
     # Test creating a subset from a subset (it should create off the parent)
-    v3 = v2.create_subset(['B', 'D'])
+    v3 = v2.create_subset(['C', 'E'])
     assert v3.parent == v2.parent == v1
 
     v3.include_pairs = True
-    assert v3.key_pairs == ['B*D']
+    assert v3.key_pairs == ['C*E']
     assert not v1.include_pairs
     assert not v2.include_pairs
 
