@@ -411,6 +411,10 @@ class Vocabulary(object):
         keys : list of strings
             List of semantic pointer names to be added to the vocabulary.
 
+        unitary : bool or list of strings, optional
+                If True, all generated pointers to be unitary.  If a list of
+                names, any pointer whose name is on the list will be forced to
+                be unitary when created.
         """
         if is_iterable(unitary):
             if is_iterable(self.unitary):
