@@ -233,6 +233,11 @@ def pytest_runtest_setup(item):
         if skip:
             pytest.skip(" and ".join(skipreasons))
 
+    if 'Simulator' in item.fixturenames:
+        for test, reason in _Simulator.unsupported:
+            if re.match(test, item.name):
+                pytest.xfail(reason)
+
 
 def pytest_collection_modifyitems(session, config, items):
     compare = config.getvalue('compare') is None

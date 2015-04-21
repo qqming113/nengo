@@ -58,6 +58,12 @@ class ProbeDict(Mapping):
 class Simulator(object):
     """Reference simulator for Nengo models."""
 
+    unsupported = [('test_constant_scalar', 'who cares')]
+    """Defines features unsupported by a simulator. The format is a list of
+    tuples of the form `(test, reason)` with `test` being a regular expression
+    matched against Nengo test names. `reason` is a string describing why the
+    feature is not supported by the backend."""
+
     def __init__(self, network, dt=0.001, seed=None, model=None):
         """Initialize the simulator with a network and (optionally) a model.
 
