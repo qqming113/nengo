@@ -3,6 +3,7 @@ import os
 import pytest
 import _pytest.capture
 
+from nengo.utils.ipython import get_ipython
 from nengo.utils.paths import examples_dir
 from nengo.utils.stdlib import execfile
 
@@ -56,7 +57,7 @@ def assert_noexceptions(nb_file, tmpdir, plt):
     pyfile = "%s.py" % (
         tmpdir.join(os.path.splitext(os.path.basename(nb_path))[0]))
     export_py(nb, pyfile)
-    execfile(pyfile, {})
+    execfile(pyfile, {'get_ipython': get_ipython})
     # Note: plt imported but not used to ensure figures are closed
     plt.saveas = None
 
