@@ -17,9 +17,11 @@ from .ipython import get_ipython, has_ipynb_widgets
 
 
 if has_ipynb_widgets():
-    from IPython.html import widgets
+    from IPython.html.widgets import DOMWidget
     from IPython.display import display
     import IPython.utils.traitlets as traitlets
+else:
+    DOMWidget = object
 
 
 class MemoryLeakWarning(UserWarning):
@@ -217,67 +219,66 @@ class TerminalProgressBar(ProgressBar):
         return '\r' + line + os.linesep
 
 
-if has_ipynb_widgets():
-    class IPythonProgressWidget(widgets.DOMWidget):
-        """IPython widget for displaying a progress bar."""
+class IPythonProgressWidget(DOMWidget):
+    """IPython widget for displaying a progress bar."""
 
-        # pylint: disable=too-many-public-methods
-        _view_name = traitlets.Unicode('NengoProgressBar', sync=True)
-        progress = traitlets.Float(0., sync=True)
-        text = traitlets.Unicode(u'', sync=True)
+    # pylint: disable=too-many-public-methods
+    _view_name = traitlets.Unicode('NengoProgressBar', sync=True)
+    progress = traitlets.Float(0., sync=True)
+    text = traitlets.Unicode(u'', sync=True)
 
-        FRONTEND = '''
-        require(["widgets/js/widget", "widgets/js/manager"],
-            function(widget, manager) {
-          if (typeof widget.DOMWidgetView == 'undefined') {
-            widget = IPython;
-          }
-          if (typeof manager.WidgetManager == 'undefined') {
-            manager = IPython;
-          }
+    FRONTEND = '''
+    require(["widgets/js/widget", "widgets/js/manager"],
+        function(widget, manager) {
+      if (typeof widget.DOMWidgetView == 'undefined') {
+        widget = IPython;
+      }
+      if (typeof manager.WidgetManager == 'undefined') {
+        manager = IPython;
+      }
 
-          var NengoProgressBar = widget.DOMWidgetView.extend({
-            render: function() {
-              // $el is the DOM of the widget
-              this.$el.css({width: '100%', marginBottom: '0.5em'});
-              this.$el.html([
-                '<div style="',
-                    'width: 100%;',
-                    'border: 1px solid #cfcfcf;',
-                    'border-radius: 4px;',
-                    'text-align: center;',
-                    'position: relative;">',
-                  '<div class="pb-text" style="',
-                      'position: absolute;',
-                      'width: 100%;">',
-                    '0%',
-                  '</div>',
-                  '<div class="pb-bar" style="',
-                      'background-color: #bdd2e6;',
-                      'width: 0%;',
-                      'transition: width 0.1s linear;">',
-                    '&nbsp;',
-                  '</div>',
-                '</div>'].join(''));
-            },
+      var NengoProgressBar = widget.DOMWidgetView.extend({
+        render: function() {
+          // $el is the DOM of the widget
+          this.$el.css({width: '100%', marginBottom: '0.5em'});
+          this.$el.html([
+            '<div style="',
+                'width: 100%;',
+                'border: 1px solid #cfcfcf;',
+                'border-radius: 4px;',
+                'text-align: center;',
+                'position: relative;">',
+              '<div class="pb-text" style="',
+                  'position: absolute;',
+                  'width: 100%;">',
+                '0%',
+              '</div>',
+              '<div class="pb-bar" style="',
+                  'background-color: #bdd2e6;',
+                  'width: 0%;',
+                  'transition: width 0.1s linear;">',
+                '&nbsp;',
+              '</div>',
+            '</div>'].join(''));
+        },
 
-            update: function() {
-              this.$el.css({width: '100%', marginBottom: '0.5em'});
-              var progress = 100 * this.model.get('progress');
-              var text = this.model.get('text');
-              this.$el.find('div.pb-bar').width(progress.toString() + '%');
-              this.$el.find('div.pb-text').text(text);
-            },
-          });
+        update: function() {
+          this.$el.css({width: '100%', marginBottom: '0.5em'});
+          var progress = 100 * this.model.get('progress');
+          var text = this.model.get('text');
+          this.$el.find('div.pb-bar').width(progress.toString() + '%');
+          this.$el.find('div.pb-text').text(text);
+        },
+      });
 
-          manager.WidgetManager.register_widget_view(
-            'NengoProgressBar', NengoProgressBar);
-        });'''
+      manager.WidgetManager.register_widget_view(
+        'NengoProgressBar', NengoProgressBar);
+    });'''
 
-        @classmethod
-        def load_frontend(cls):
-            """Loads the JavaScript front-end code required by then widget."""
-            get_ipython().run_cell_magic('javascript', '', cls.FRONTEND)
+    @classmethod
+    def load_frontend(cls):
+        """Loads the JavaScript front-end code required by then widget."""
+        get_ipython().run_cell_magic('javascript', '', cls.FRONTEND)
 
 
 class IPython2ProgressBar(ProgressBar):
