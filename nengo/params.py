@@ -97,6 +97,9 @@ class AbandonedParam(Parameter):
         super(AbandonedParam, self).__init__(optional=True)
 
     def __get__(self, instance, type_):
+        if instance is None:
+            # Return self so default can be inspected
+            return self
         # raise a nice error if the parameter is accessed
         self._raise_error()
 
