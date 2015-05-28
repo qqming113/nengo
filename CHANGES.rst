@@ -34,6 +34,11 @@ Release History
   further improvements are pending, and the current implementation
   SHOULD NOT BE RELEASED!
   (`#652 <https://github.com/nengo/nengo/pull/652>`_)
+- ``LearningRuleType`` objects no longer take modulatory connections.
+  Instead, a connection should be made directly from the error population
+  to the learning rule. Also, the error's sign has been flipped for
+  the PES learning rule to be ``actual - target``.
+  (`#642 <https://github.com/nengo/nengo/pull/642>`_)
 
 **Behavioural changes**
 
