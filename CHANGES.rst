@@ -36,10 +36,10 @@ Release History
   (`#652 <https://github.com/nengo/nengo/pull/652>`_)
 - ``LearningRuleType`` objects no longer take modulatory connections.
   Instead, a connection should be made directly from the error population
-  to the learning rule. Also, the error's sign has been flipped for
-  the PES learning rule to be ``actual - target``.
+  to the learning rule. Also, the sign has been flipped for
+  the PES learning rule error, to be ``actual - target``.
   (`#642 <https://github.com/nengo/nengo/pull/642>`_)
-- The learning deltas to ``PES`` are now invariant under the number of neurons
+- The ``PES`` learning rule is now invariant under the number of neurons
   in the pre-population. However, this means that a `learning_rate`
   that worked in the past may first need to be updated. In particular, the
   `learning_rate` should be scaled by `n_neurons / 100`, where `n_neurons` is

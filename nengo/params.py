@@ -88,13 +88,13 @@ class Parameter(object):
             raise ValueError("Parameter is not optional; cannot set to None")
 
 
-class AbandonedParam(Parameter):
+class ObsoleteParam(Parameter):
     """A parameter that is no longer supported."""
 
     def __init__(self, pull_request, msg):
         self._pull_request = pull_request
         self._msg = msg
-        super(AbandonedParam, self).__init__(optional=True)
+        super(ObsoleteParam, self).__init__(optional=True)
 
     def __get__(self, instance, type_):
         if instance is None:

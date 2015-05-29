@@ -56,11 +56,11 @@ def test_readonly():
     assert inst.r == 'set'
 
 
-def test_abandonedparam():
-    """AbandonedParams must not be set."""
+def test_obsoleteparam():
+    """ObsoleteParams must not be set."""
 
     class Test(object):
-        ab = params.AbandonedParam(123, "msg")
+        ab = params.ObsoleteParam(123, "msg")
 
     inst = Test()
 

@@ -9,7 +9,7 @@ from nengo.ensemble import Ensemble, Neurons
 from nengo.learning_rules import LearningRuleType, LearningRuleTypeParam
 from nengo.node import Node
 from nengo.params import (
-    Default, Unconfigurable, AbandonedParam, BoolParam, FunctionParam,
+    Default, Unconfigurable, ObsoleteParam, BoolParam, FunctionParam,
     IntParam, NdarrayParam)
 from nengo.solvers import LstsqL2, SolverParam
 from nengo.synapses import Lowpass, SynapseParam
@@ -227,7 +227,7 @@ class Connection(NengoObject):
         default=None, optional=True, sample_shape=('*', 'size_in'))
     scale_eval_points = BoolParam(default=True)
     seed = IntParam(default=None, optional=True)
-    modulatory = AbandonedParam(642, "modulatory connections removed")
+    modulatory = ObsoleteParam(642, "modulatory connections removed")
 
     def __init__(self, pre, post, synapse=Default, transform=Default,
                  solver=Default, learning_rule_type=Default, function=Default,
