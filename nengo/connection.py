@@ -27,12 +27,14 @@ class ConnectionLearningRuleTypeParam(LearningRuleTypeParam):
 
     def validate_rule(self, conn, rule):
         super(ConnectionLearningRuleTypeParam, self).validate_rule(conn, rule)
-        rule_type = ('Neurons' if conn.solver.weights
-                     else type(conn.pre).__name__)
-        if rule_type not in rule.modifies:
-            raise ValueError("Learning rule '%s' cannot be applied to "
-                             "connection with pre of type '%s'"
-                             % (rule, type(conn.pre).__name__))
+        for side, modifies in ((conn.pre, rule.pre_modifies),
+                               (conn.post, rule.post_modifies)):
+            rule_type = ('Neurons' if conn.solver.weights
+                         else type(side).__name__)
+            if modifies is not None and rule_type not in modifies:
+                raise ValueError("Learning rule '%s' cannot be applied to "
+                                 "connection with pre of type '%s'"
+                                 % (rule, type(side).__name__))
 
 
 class ConnectionSolverParam(SolverParam):
@@ -354,6 +356,8 @@ class LearningRule(object):
         error_type = self.learning_rule_type.error_type.lower()
         if error_type == 'none':
             return 0
+        elif error_type == 'scalar':
+            return 1
         elif error_type == 'decoder':
             if isinstance(self.connection.pre_obj, Neurons):
                 return self.connection.pre_obj.ensemble.dimensions

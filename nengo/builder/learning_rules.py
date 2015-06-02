@@ -6,7 +6,7 @@ from nengo.builder.signal import Signal
 from nengo.builder.synapses import filtered_signal
 from nengo.connection import LearningRule
 from nengo.ensemble import Ensemble, Neurons
-from nengo.learning_rules import BCM, Oja, PES
+from nengo.learning_rules import BCM, Oja, Voja, PES
 
 
 class SimBCM(Operator):
@@ -136,6 +136,93 @@ def build_oja(model, oja, rule):
     model.params[rule] = None  # no build-time info to return
 
 
+@Builder.register(Voja)
+def build_voja(model, voja, rule):
+    conn = rule.connection
+
+    # Input vector, decoded and filtered from pre
+    x = model.sig[conn]['out']
+
+    # Filtered post activity
+    post = conn.post_obj
+    if voja.post_tau is not None:
+        post_filtered = filtered_signal(
+            model, voja, model.sig[post]['out'], voja.post_tau)
+    else:
+        post_filtered = model.sig[post]['out']
+
+    # Learning signal, defaults to 1 in case no connection is made
+    # and multiplied by the learning_rate * dt
+    learning = Signal(np.zeros(rule.size_in), name="Voja:learning")
+    assert rule.size_in == 1
+    model.add_op(Reset(learning, value=1.0))
+    model.sig[rule]['in'] = learning  # optional connection will attach here
+    learning_rate = voja.learning_rate * model.dt
+    lr_sig = Signal(learning_rate, name="Voja:learning_rate")
+
+    # Post encoders (scaled)
+    encoders = model.sig[post]['encoders']
+    # The gain and radius are folded into the encoders during the ensemble
+    # build process, so we need to make sure that the deltas are proportional
+    # to this scaling factor
+    encoder_scale = Signal(
+        model.params[post].gain / post.radius, name="Voja:encoder_scale")
+    assert post_filtered.shape == encoder_scale.shape
+
+    # Intermediary signals
+    learning_scaled = Signal(np.zeros(1), name="Voja:learning_scaled")
+    model.add_op(Reset(learning_scaled))
+
+    outer = Signal(np.zeros(encoders.shape), name="Voja:outer")
+    model.add_op(Reset(outer))
+
+    normalize = Signal(np.zeros(post_filtered.shape), name="Voja:normalize")
+    model.add_op(Reset(normalize))
+
+    delta = Signal(np.zeros(encoders.shape), name="Voja:delta")
+    model.add_op(Reset(delta))
+
+    # Operations to perform the voja update rule
+    # This implements `learning * (outer(y, x) - y*e)`, where
+    #    `learning` is the `learning_rate * learning signal` (modulatory input)
+    #    `y` is the filtered post-synaptic activity (tau = `post_tau`)
+    #    `x` is the decoded vector
+    #    `e` are the encoders
+    # This is the same as Oja's rule, `learning * (outer(y, a) - s*y^2*W)`, if
+    #    `e` <-> `W`    (encoders <-> weights)
+    #    `a` <-> `x`    (activities <-> vector)
+    #    `s` <-> `1/y`  (dynamic normalization)
+
+    # Computes outer(y, x), and adds to delta signal
+    # encoder_scale introduced here to account for scaling of the encoders
+    model.add_op(ElementwiseInc(
+        post_filtered.column(), x.row(), outer, tag="Voja:outer"))
+    model.add_op(ElementwiseInc(
+        encoder_scale.column(), outer, delta, tag="Voja:add_outer"))
+
+    # Computes -y^2 e, and adds to delta signal
+    model.add_op(
+        ElementwiseInc(Signal(-1), post_filtered, normalize,
+                       tag="Voja:normalize"))
+    model.add_op(
+        ElementwiseInc(normalize.column(), encoders, delta,
+                       tag="Voja:add_normalize"))
+
+    # Computes learning, and uses it to scale the delta update to the encoders
+    model.add_op(
+        ElementwiseInc(learning, lr_sig, learning_scaled,
+                       tag="Voja:learning_scaled"))
+    model.add_op(  # as_update=True is required to avoid cycle in op-graph
+        ElementwiseInc(delta, learning_scaled, encoders, as_update=True,
+                       tag="Voja:inc_update"))
+
+    model.sig[rule]['scaled_encoders'] = encoders
+    model.sig[rule]['delta'] = delta
+    model.sig[rule]['post_filtered'] = post_filtered
+
+    model.params[rule] = None  # no build-time info to return
+
+
 @Builder.register(PES)
 def build_pes(model, pes, rule):
     conn = rule.connection
@@ -147,11 +234,11 @@ def build_pes(model, pes, rule):
 
     acts = filtered_signal(
         model, pes, model.sig[conn.pre_obj]['out'], pes.pre_tau)
-    acts_view = acts.reshape((1, acts.size))
+    acts_row = acts.row()
 
     # Compute the correction, i.e. the scaled negative error
     correction = Signal(np.zeros(error.shape), name="PES:correction")
-    correction_view = correction.reshape((error.size, 1))
+    correction_col = correction.column()
     model.add_op(Reset(correction))
 
     n_neurons = (conn.pre_obj.n_neurons if isinstance(conn.pre_obj, Ensemble)
@@ -172,19 +259,18 @@ def build_pes(model, pes, rule):
         model.add_op(Reset(encoded))
         model.add_op(DotInc(encoders, correction, encoded, tag="PES:encode"))
 
-        encoded_view = encoded.reshape((encoded.size, 1))
         model.add_op(ElementwiseInc(
-            encoded_view, acts_view, transform, as_update=True,
+            encoded.column(), acts_row, transform, as_update=True,
             tag="PES:Inc Transform"))
     elif isinstance(conn.pre_obj, Neurons):
         transform = model.sig[conn]['transform']
         model.add_op(ElementwiseInc(
-            correction_view, acts_view, transform, as_update=True,
+            correction_col, acts_row, transform, as_update=True,
             tag="PES:Inc Transform"))
     elif isinstance(conn.pre_obj, Ensemble):
         decoders = model.sig[conn]['decoders']
         model.add_op(ElementwiseInc(
-            correction_view, acts_view, decoders, as_update=True,
+            correction_col, acts_row, decoders, as_update=True,
             tag="PES:Inc Decoder"))
     else:
         raise ValueError("'pre' object '%s' not suitable for PES learning"
