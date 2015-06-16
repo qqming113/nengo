@@ -250,7 +250,7 @@ class Solver(with_metaclass(DocstringInheritor)):
                 if v.size < 1e5:
                     a = v[:]
                     a.setflags(write=False)
-                    hashes.append(hash(a))
+                    hashes.append(hash(a.data))
                 else:
                     raise ValueError("array is too large to hash")
             elif isinstance(v, collections.Iterable):
