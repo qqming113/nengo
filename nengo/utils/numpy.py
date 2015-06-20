@@ -12,6 +12,15 @@ def compare(a, b):
     return 0 if a == b else 1 if a > b else -1 if a < b else None
 
 
+def eq_none_slice(sl):
+    """Returns true iff `sl == slice(None)`.
+
+    This handles the equality check properly for numpy arrays."""
+    if isinstance(sl, np.ndarray):  # since equality needs any/all
+        return False
+    return sl == slice(None)
+
+
 def broadcast_shape(shape, length):
     """Pad a shape with ones following standard Numpy broadcasting."""
     n = len(shape)
