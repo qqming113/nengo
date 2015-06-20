@@ -159,7 +159,7 @@ def function_seed(function, mod=0):
     i = int(hashlib.md5(hash_string).hexdigest()[:15], 16)
     s = (i + mod) % npext.maxint
     int_s = int(s)  # numpy 1.8.0 bug when RandomState on long type inputs
-    assert int_s == s  # no overflow because of mod by npext.maxint
+    assert type(int_s) == int  # should not still be a long because < maxint
     return int_s
 
 
