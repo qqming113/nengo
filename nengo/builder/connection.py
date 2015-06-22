@@ -21,17 +21,6 @@ BuiltConnection = collections.namedtuple(
     'BuiltConnection', ['decoders', 'eval_points', 'solver_info', 'weights'])
 
 
-def get_sliced_signal(signal, s, model):
-    assert signal.ndim == 1
-    if isinstance(s, slice) and (s.step is None or s.step == 1):
-        return signal[s]
-    else:
-        size = np.arange(signal.size)[s].size
-        sliced_signal = Signal(np.zeros(size), name="%s.sliced" % signal.name)
-        model.add_op(SlicedCopy(signal, sliced_signal, a_slice=s))
-        return sliced_signal
-
-
 def get_eval_points(model, conn, rng):
     if conn.eval_points is None:
         return npext.array(
@@ -77,6 +66,17 @@ def multiply(x, y):
                          % (x.ndim, y.ndim))
 
 
+def slice_signal(model, signal, sl):
+    assert signal.ndim == 1
+    if isinstance(sl, slice) and (sl.step is None or sl.step == 1):
+        return signal[sl]
+    else:
+        size = np.arange(signal.size)[sl].size
+        sliced_signal = Signal(np.zeros(size), name="%s.sliced" % signal.name)
+        model.add_op(SlicedCopy(signal, sliced_signal, a_slice=sl))
+        return sliced_signal
+
+
 @Builder.register(Connection)  # noqa: C901
 def build_connection(model, conn):
     # Create random number generator
@@ -113,15 +113,15 @@ def build_connection(model, conn):
             (isinstance(conn.pre_obj, Ensemble) and
              isinstance(conn.pre_obj.neuron_type, Direct))):
         # Node or Decoded connection in directmode
-        sliced_signal = get_sliced_signal(in_signal, conn.pre_slice, model)
+        sliced_in = slice_signal(model, in_signal, conn.pre_slice)
 
         if conn.function is not None:
             in_signal = Signal(np.zeros(conn.size_mid), name='%s.func' % conn)
             model.add_op(SimPyFunc(
                 output=in_signal, fn=conn.function,
-                t_in=False, x=sliced_signal))
+                t_in=False, x=sliced_in))
         else:
-            in_signal = sliced_signal
+            in_signal = sliced_in
 
     elif isinstance(conn.pre_obj, Ensemble):  # Normal decoded connection
         eval_points, activities, targets = build_linear_system(
@@ -143,7 +143,7 @@ def build_connection(model, conn):
             decoders, solver_info = solver(activities, targets, rng=rng)
             weights = multiply(conn.transform, decoders.T)
     else:
-        in_signal = get_sliced_signal(in_signal, conn.pre_slice, model)
+        in_signal = slice_signal(model, in_signal, conn.pre_slice)
 
     # Add operator for applying weights
     if weights is None:
@@ -172,7 +172,7 @@ def build_connection(model, conn):
     # Copy to the proper slice
     model.add_op(SlicedCopy(
         signal, model.sig[conn]['out'], b_slice=post_slice,
-        kind='inc', tag="%s.gain" % conn))
+        inc=True, tag="%s.gain" % conn))
 
     # Build learning rules
     if conn.learning_rule is not None:
