@@ -5,7 +5,7 @@ import numpy as np
 
 import nengo.utils.numpy as npext
 from nengo.builder.builder import Builder
-from nengo.builder.operator import Copy, DotInc, Reset, SimNoise
+from nengo.builder.operator import Copy, DotInc, Reset
 from nengo.builder.signal import Signal
 from nengo.dists import Distribution
 from nengo.ensemble import Ensemble
@@ -40,6 +40,12 @@ def gen_eval_points(ens, eval_points, rng, scale_eval_points=True):
     if scale_eval_points:
         eval_points *= ens.radius  # scale by ensemble radius
     return eval_points
+
+
+def get_activities(model, ens, eval_points):
+    x = np.dot(eval_points, model.params[ens].encoders.T / ens.radius)
+    return ens.neuron_type.rates(
+        x, model.params[ens].gain, model.params[ens].bias)
 
 
 @Builder.register(Ensemble)  # noqa: C901
@@ -106,7 +112,7 @@ def build_ensemble(model, ens):
 
     # Inject noise if specified
     if ens.noise is not None:
-        model.add_op(SimNoise(model.sig[ens.neurons]['in'], ens.noise))
+        model.build(ens.noise, sig_out=model.sig[ens.neurons]['in'], inc=True)
 
     # Create output signal, using built Neurons
     model.add_op(DotInc(

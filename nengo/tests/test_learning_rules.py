@@ -3,7 +3,7 @@ import pytest
 
 import nengo
 from nengo.learning_rules import LearningRuleTypeParam, PES, BCM, Oja
-from nengo.processes import WhiteNoise
+from nengo.processes import WhiteSignal
 from nengo.solvers import LstsqL2nz
 
 
@@ -159,7 +159,7 @@ def test_unsupervised(Simulator, learning_rule_type, seed, rng, plt):
 
     m = nengo.Network(seed=seed)
     with m:
-        u = nengo.Node(WhiteNoise(0.5, high=5).f(d=2, rng=rng))
+        u = nengo.Node(WhiteSignal(0.5, high=5), size_out=2)
         a = nengo.Ensemble(n, dimensions=2)
         u_learned = nengo.Ensemble(n, dimensions=2)
 
@@ -177,7 +177,7 @@ def test_unsupervised(Simulator, learning_rule_type, seed, rng, plt):
         ap = nengo.Probe(a, synapse=0.03)
         up = nengo.Probe(u_learned, synapse=0.03)
 
-    sim = Simulator(m)
+    sim = Simulator(m, seed=seed+1)
     sim.run(0.5)
     t = sim.trange()
 

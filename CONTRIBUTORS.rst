@@ -31,6 +31,7 @@ Please keep this list sorted alphabetically.
 - Peter Blouw <pblouw@uwaterloo.ca>
 - Peter Suma <psuma@waterloo.ca>
 - Sean Aubin <seanaubin@gmail.com>
+- Sugandha Sharma <sugandha974@gmail.com>
 - Terry Stewart <terry.stewart@gmail.com>
 - Travis DeWolf <travis.dewolf@gmail.com>
 - Trevor Bekolay <tbekolay@gmail.com>

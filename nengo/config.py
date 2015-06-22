@@ -27,22 +27,19 @@ class ClassParams(object):
     """
 
     def __init__(self, configures):
-        self._extraparams = {}
-        self._configures = configures
         assert inspect.isclass(configures)
+        self._configures = configures
+        self._extraparams = {}
+        self._default_params = tuple(
+            attr for attr in dir(self._configures)
+            if is_param(getattr(self._configures, attr)))
 
     def __contains__(self, key):
         return self in self.get_param(key)
 
-    def __getattribute__(self, key):
-        """Overridden to handle instance descriptors manually."""
-        try:
-            # Parameters are never stored in __dict__
-            return super(ClassParams, self).__getattribute__(key)
-        except AttributeError:
-            # get_param gives a good error message, so this is sufficient
-            param = self.get_param(key)
-            return param.defaults[self] if self in param else param.default
+    def __getattr__(self, key):
+        param = self.get_param(key)
+        return param.defaults[self] if self in param else param.default
 
     def __setattr__(self, key, value):
         """Overridden to handle instance descriptors manually.
@@ -68,7 +65,7 @@ class ClassParams(object):
     def __str__(self):
         name = self._configures.__name__
         lines = ["Parameters configured for %s:" % name]
-        for attr in list(self.default_params) + list(self.extra_params):
+        for attr in self.params:
             if self in self.get_param(attr):
                 lines.append("  %s: %s" % (attr, getattr(self, attr)))
         if len(lines) > 1:
@@ -90,10 +87,8 @@ class ClassParams(object):
     def get_param(self, key):
         if key in self._extraparams:
             return self._extraparams[key]
-        elif key in dir(self._configures):
-            return getattr(self._configures, key)
-        else:
-            raise AttributeError("Unknown config parameter '%s'" % key)
+
+        return getattr(self._configures, key)
 
     def set_param(self, key, value):
         if not is_param(value):
@@ -111,16 +106,15 @@ class ClassParams(object):
 
     @property
     def default_params(self):
-        return (attr for attr in dir(self._configures)
-                if is_param(getattr(self._configures, attr)))
+        return self._default_params
 
     @property
     def extra_params(self):
-        return list(self._extraparams)
+        return tuple(self._extraparams)
 
     @property
     def params(self):
-        return list(self.default_params) + list(self.extra_params)
+        return self.default_params + self.extra_params
 
 
 class InstanceParams(object):
@@ -139,16 +133,16 @@ class InstanceParams(object):
     def __contains__(self, key):
         return self in self._clsparams.get_param(key)
 
-    def __getattribute__(self, key):
-        try:
-            return super(InstanceParams, self).__getattribute__(key)
-        except AttributeError:
-            if key in self._clsparams.default_params:
-                raise
-            param = self._clsparams.get_param(key)
-            if self in param:
-                return param.__get__(self, self.__class__)
-            return getattr(self._clsparams, key)
+    def __getattr__(self, key):
+        if key in self._clsparams.default_params:
+            raise AttributeError(
+                "Cannot configure the built-in parameter '%s' on an instance "
+                "of '%s'. Please get the attribute directly from the object."
+                % (key, self._configures.__class__.__name__))
+        param = self._clsparams.get_param(key)
+        if self in param:
+            return param.__get__(self, self.__class__)
+        return getattr(self._clsparams, key)
 
     def __setattr__(self, key, value):
         """Everything not starting with _ is assumed to be a parameter."""
@@ -156,8 +150,10 @@ class InstanceParams(object):
             super(InstanceParams, self).__setattr__(key, value)
         elif key in dir(self._configures):
             # Disallow configuring attributes the instance already has
-            raise AttributeError("'%s' object has no attribute '%s'"
-                                 % (self.__class__.__name__, key))
+            raise AttributeError(
+                "Cannot configure the built-in parameter '%s' on an instance "
+                "of '%s'. Please set the attribute directly on the object."
+                % (key, self._configures.__class__.__name__))
         else:
             self._clsparams.get_param(key).__set__(self, value)
 
@@ -166,8 +162,10 @@ class InstanceParams(object):
             super(InstanceParams, self).__delattr__(key)
         elif key in dir(self._configures):
             # Disallow configuring attributes the instance already has
-            raise AttributeError("'%s' object has no attribute '%s'"
-                                 % (self.__class__.__name__, key))
+            raise AttributeError(
+                "Cannot configure the built-in parameter '%s' on an instance "
+                "of '%s'. Please delete the attribute directly on the object."
+                % (key, self._configures.__class__.__name__))
         else:
             self._clsparams.get_param(key).__delete__(self)
 

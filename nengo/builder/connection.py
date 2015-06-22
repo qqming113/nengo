@@ -4,8 +4,8 @@ import numpy as np
 
 import nengo.utils.numpy as npext
 from nengo.builder.builder import Builder
-from nengo.builder.ensemble import gen_eval_points
-from nengo.builder.node import build_pyfunc
+from nengo.builder.ensemble import gen_eval_points, get_activities
+from nengo.builder.node import SimPyFunc
 from nengo.builder.operator import DotInc, ElementwiseInc, PreserveValue, Reset
 from nengo.builder.signal import Signal
 from nengo.builder.synapses import filtered_signal
@@ -20,26 +20,16 @@ BuiltConnection = collections.namedtuple(
     'BuiltConnection', ['decoders', 'eval_points', 'transform', 'solver_info'])
 
 
-def build_linear_system(model, conn, rng):
-    encoders = model.params[conn.pre_obj].encoders
-    gain = model.params[conn.pre_obj].gain
-    bias = model.params[conn.pre_obj].bias
-
+def get_eval_points(model, conn, rng):
     if conn.eval_points is None:
-        eval_points = npext.array(
+        return npext.array(
             model.params[conn.pre_obj].eval_points, min_dims=2)
     else:
-        eval_points = gen_eval_points(
+        return gen_eval_points(
             conn.pre_obj, conn.eval_points, rng, conn.scale_eval_points)
 
-    x = np.dot(eval_points, encoders.T / conn.pre_obj.radius)
-    activities = conn.pre_obj.neuron_type.rates(x, gain, bias)
-    if np.count_nonzero(activities) == 0:
-        raise RuntimeError(
-            "Building %s: 'activites' matrix is all zero for %s. "
-            "This is because no evaluation points fall in the firing "
-            "ranges of any neurons." % (conn, conn.pre_obj))
 
+def get_targets(model, conn, eval_points):
     if conn.function is None:
         targets = eval_points[:, conn.pre_slice]
     else:
@@ -47,6 +37,19 @@ def build_linear_system(model, conn, rng):
         for i, ep in enumerate(eval_points[:, conn.pre_slice]):
             targets[i] = conn.function(ep)
 
+    return targets
+
+
+def build_linear_system(model, conn, rng):
+    eval_points = get_eval_points(model, conn, rng)
+    activities = get_activities(model, conn.pre_obj, eval_points)
+    if np.count_nonzero(activities) == 0:
+        raise RuntimeError(
+            "Building %s: 'activites' matrix is all zero for %s. "
+            "This is because no evaluation points fall in the firing "
+            "ranges of any neurons." % (conn, conn.pre_obj))
+
+    targets = get_targets(model, conn, eval_points)
     return eval_points, activities, targets
 
 
@@ -88,18 +91,11 @@ def build_connection(model, conn):
                 (conn.pre_slice.step is None or conn.pre_slice.step == 1)):
             signal = model.sig[conn]['in'][conn.pre_slice]
         else:
-            sig_in, signal = build_pyfunc(
-                fn=(lambda x: x[conn.pre_slice]) if conn.function is None else
-                   (lambda x: conn.function(x[conn.pre_slice])),
-                t_in=False,
-                n_in=model.sig[conn]['in'].size,
-                n_out=conn.size_mid,
-                label=str(conn),
-                model=model)
-            model.add_op(DotInc(model.sig[conn]['in'],
-                                model.sig['common'][1],
-                                sig_in,
-                                tag="%s input" % conn))
+            signal = Signal(np.zeros(conn.size_mid), name='%s.func' % conn)
+            fn = ((lambda x: x[conn.pre_slice]) if conn.function is None else
+                  (lambda x: conn.function(x[conn.pre_slice])))
+            model.add_op(SimPyFunc(
+                output=signal, fn=fn, t_in=False, x=model.sig[conn]['in']))
     elif isinstance(conn.pre_obj, Ensemble):
         # Normal decoded connection
         eval_points, activities, targets = build_linear_system(

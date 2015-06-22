@@ -2,17 +2,16 @@ import numpy as np
 import pytest
 
 import nengo
-from nengo.processes import WhiteNoise
+from nengo.processes import WhiteSignal
 from nengo.synapses import (
-    Alpha, filt, filtfilt, LinearFilter, Lowpass, SynapseParam)
+    Alpha, filt, filtfilt, LinearFilter, Lowpass, SynapseParam, Triangle)
 from nengo.utils.testing import allclose
 
 
 def run_synapse(Simulator, seed, synapse, dt=1e-3, runtime=1., n_neurons=None):
     model = nengo.Network(seed=seed)
     with model:
-        u = nengo.Node(
-            output=WhiteNoise(runtime, 5).f(rng=np.random.RandomState(seed)))
+        u = nengo.Node(output=WhiteSignal(runtime, 5))
 
         if n_neurons is not None:
             a = nengo.Ensemble(n_neurons, 1)
@@ -24,7 +23,7 @@ def run_synapse(Simulator, seed, synapse, dt=1e-3, runtime=1., n_neurons=None):
         ref = nengo.Probe(target)
         filtered = nengo.Probe(target, synapse=synapse)
 
-    sim = Simulator(model, dt=dt)
+    sim = Simulator(model, dt=dt, seed=seed+1)
     sim.run(runtime)
 
     return sim.trange(), sim.data[ref], sim.data[filtered]
@@ -51,6 +50,24 @@ def test_alpha(Simulator, plt, seed):
     assert allclose(t, y, yhat, delay=dt, atol=5e-6, plt=plt)
 
 
+def test_triangle(Simulator, plt, seed):
+    dt = 1e-3
+    tau = 0.03
+
+    t, x, ysim = run_synapse(Simulator, seed, Triangle(tau), dt=dt)
+    yfilt = filt(x, Triangle(tau), dt=dt)
+
+    # compare with convolved filter
+    n_taps = int(round(tau / dt)) + 1
+    num = np.arange(n_taps, 0, -1, dtype=float)
+    num /= num.sum()
+    y = np.convolve(x.ravel(), num)[:len(t)]
+    y.shape = (-1, 1)
+
+    assert np.allclose(y, yfilt, rtol=0)
+    assert allclose(t, y, ysim, delay=dt, rtol=0, plt=plt)
+
+
 def test_decoders(Simulator, plt, seed):
     dt = 1e-3
     tau = 0.01
@@ -62,7 +79,7 @@ def test_decoders(Simulator, plt, seed):
     assert allclose(t, y, yhat, delay=dt, plt=plt)
 
 
-def test_general(Simulator, plt, seed):
+def test_linearfilter(Simulator, plt, seed):
     dt = 1e-3
 
     # The following num, den are for a 4th order analog Butterworth filter,
@@ -74,8 +91,7 @@ def test_general(Simulator, plt, seed):
     t, x, yhat = run_synapse(Simulator, seed, LinearFilter(num, den), dt=dt)
     y = filt(x, LinearFilter(num, den), dt=dt)
 
-    # Nengo sim is one timestep behind raw filter
-    assert allclose(t[:-1], y[:-1], yhat[1:], plt=plt)
+    assert allclose(t, y, yhat, delay=dt, plt=plt)
 
 
 def test_filt(plt, rng):
