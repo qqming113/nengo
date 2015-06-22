@@ -41,7 +41,11 @@ class Model(object):
         op.make_step(signals, self.dt, np.random)
 
     def has_built(self, obj):
-        """Returns true iff obj has been processed by build."""
+        """Returns true if obj has built parameters.
+
+        Some objects (e.g. synapses) do not add params and can be built more
+        than once (i.e. this function returns false), allowing re-use.
+        """
         return obj in self.params
 
 
