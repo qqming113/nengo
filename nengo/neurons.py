@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class NeuronType(object):
 
-    probeable = []
+    probeable = ()
 
     @property
     def _argreprs(self):
@@ -120,7 +120,7 @@ class Direct(NeuronType):
 class RectifiedLinear(NeuronType):
     """A rectified linear neuron model."""
 
-    probeable = ['rates']
+    probeable = ('rates',)
 
     def gain_bias(self, max_rates, intercepts):
         """Return gain and bias given maximum firing rate and x-intercept."""
@@ -137,7 +137,7 @@ class Sigmoid(NeuronType):
     """Neuron whose response curve is a sigmoid."""
 
     tau_ref = NumberParam(low=0)
-    probeable = ['rates']
+    probeable = ('rates',)
 
     def __init__(self, tau_ref=0.002):
         self.tau_ref = tau_ref
@@ -164,7 +164,7 @@ class LIFRate(NeuronType):
 
     tau_rc = NumberParam(low=0, low_open=True)
     tau_ref = NumberParam(low=0)
-    probeable = ['rates']
+    probeable = ('rates',)
 
     def __init__(self, tau_rc=0.02, tau_ref=0.002):
         self.tau_rc = tau_rc
@@ -224,7 +224,7 @@ class LIF(LIFRate):
     """Spiking version of the leaky integrate-and-fire (LIF) neuron model."""
 
     min_voltage = NumberParam(high=0)
-    probeable = ['spikes', 'voltage', 'refractory_time']
+    probeable = ('spikes', 'voltage', 'refractory_time')
 
     def __init__(self, tau_rc=0.02, tau_ref=0.002, min_voltage=0):
         super(LIF, self).__init__(tau_rc=tau_rc, tau_ref=tau_ref)
@@ -261,7 +261,7 @@ class AdaptiveLIFRate(LIFRate):
 
     tau_n = NumberParam(low=0, low_open=True)
     inc_n = NumberParam(low=0)
-    probeable = ['rates', 'adaptation']
+    probeable = ('rates', 'adaptation')
 
     def __init__(self, tau_n=1, inc_n=0.01, **lif_args):
         super(AdaptiveLIFRate, self).__init__(**lif_args)
@@ -287,7 +287,7 @@ class AdaptiveLIFRate(LIFRate):
 class AdaptiveLIF(AdaptiveLIFRate, LIF):
     """Adaptive spiking version of the LIF neuron model."""
 
-    probeable = ['spikes', 'adaptation', 'voltage', 'refractory_time']
+    probeable = ('spikes', 'adaptation', 'voltage', 'refractory_time')
 
     def step_math(self, dt, J, output, voltage, ref, adaptation):
         """Compute rates for input current (incl. bias)"""
@@ -340,7 +340,7 @@ class Izhikevich(NeuronType):
     coupling = NumberParam(low=0)
     reset_voltage = NumberParam()
     reset_recovery = NumberParam()
-    probeable = ['spikes', 'voltage', 'recovery']
+    probeable = ('spikes', 'voltage', 'recovery')
 
     def __init__(self, tau_recovery=0.02, coupling=0.2,
                  reset_voltage=-65, reset_recovery=8):

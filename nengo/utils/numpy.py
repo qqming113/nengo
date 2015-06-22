@@ -39,6 +39,30 @@ def array(x, dims=None, min_dims=0, readonly=False, **kwargs):
     return y
 
 
+def array_hash(a, n=100):
+    """Simple fast array hash function
+
+    For arrays with size larger than `n`, pick `n` elements at random to hash.
+    This should work quite well for dense matrices, but for sparse ones it is
+    more likely to give hash collisions.
+    """
+    if not isinstance(a, np.ndarray):
+        return hash(a)
+
+    if a.size < n:
+        # hash all elements
+        v = a.view()
+        v.setflags(write=False)
+        return hash(v.data)
+    else:
+        # pick random elements to hash
+        rng = np.random.RandomState(a.size)
+        inds = [rng.randint(0, a.shape[i], size=n) for i in range(a.ndim)]
+        v = a[inds]
+        v.setflags(write=False)
+        return hash(v.data)
+
+
 def expm(A, n_factors=None, normalize=False):
     """Simple matrix exponential to replace Scipy's matrix exponential
 
