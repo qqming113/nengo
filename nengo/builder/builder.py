@@ -63,7 +63,7 @@ class Builder(object):
         if model.has_built(obj):
             # TODO: Prevent this at pre-build validation time.
             warnings.warn("Object %s has already been built." % obj)
-            return
+            return None
 
         for obj_cls in obj.__class__.__mro__:
             if obj_cls in cls.builders:
@@ -71,4 +71,5 @@ class Builder(object):
         else:
             raise TypeError("Cannot build object of type '%s'." %
                             obj.__class__.__name__)
-        cls.builders[obj_cls](model, obj, *args, **kwargs)
+
+        return cls.builders[obj_cls](model, obj, *args, **kwargs)
