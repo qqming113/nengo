@@ -1,5 +1,4 @@
 import numpy as np
-from copy import deepcopy as copy
 
 import nengo
 from nengo.networks import EnsembleArray
@@ -135,7 +134,7 @@ class AssociativeMemory(nengo.Network):
             self.am_ensembles = []
             for i in range(N):
                 # Ensemble array parameters
-                ens_params = copy(ens_args)
+                ens_params = dict(ens_args)
                 ens_params['radius'] = ens_args.get('radius', 1.0)
                 ens_params['dimensions'] = 1
                 ens_params['n_neurons'] = n_neurons_per_ensemble
@@ -176,7 +175,7 @@ class AssociativeMemory(nengo.Network):
             if default_output_vector is not None or threshold_output:
                 default_threshold = min(1 - np.min(threshold), 0.9)
 
-                ens_params = copy(ens_args)
+                ens_params = dict(ens_args)
                 ens_params['radius'] = ens_args.get('radius', 1.0)
                 ens_params['dimensions'] = 1
                 ens_params['n_neurons'] = n_neurons_per_ensemble
@@ -208,7 +207,7 @@ class AssociativeMemory(nengo.Network):
             # Set up thresholding ensembles
             if threshold_output:
                 # Ensemble array parameters
-                ens_params = copy(ens_args)
+                ens_params = dict(ens_args)
                 ens_params['radius'] = ens_args.get('radius', 1.0)
                 ens_params['n_neurons'] = n_neurons_per_ensemble
                 ens_params['n_ensembles'] = N
