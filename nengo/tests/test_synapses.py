@@ -192,5 +192,5 @@ def test_frozen():
     assert b != c
     assert hash(b) != hash(c)  # not guaranteed, but highly likely
 
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, RuntimeError)):
         a.den[0] = 9
