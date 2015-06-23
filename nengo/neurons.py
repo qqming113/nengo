@@ -4,14 +4,14 @@ import logging
 
 import numpy as np
 
-from nengo.params import Parameter, NumberParam
+from nengo.params import Parameter, NumberParam, FrozenObject
 from nengo.utils.compat import range
 from nengo.utils.neurons import settled_firingrate
 
 logger = logging.getLogger(__name__)
 
 
-class NeuronType(object):
+class NeuronType(FrozenObject):
 
     probeable = ()
 
@@ -140,6 +140,7 @@ class Sigmoid(NeuronType):
     probeable = ('rates',)
 
     def __init__(self, tau_ref=0.002):
+        super(Sigmoid, self).__init__()
         self.tau_ref = tau_ref
 
     @property
@@ -167,6 +168,7 @@ class LIFRate(NeuronType):
     probeable = ('rates',)
 
     def __init__(self, tau_rc=0.02, tau_ref=0.002):
+        super(LIFRate, self).__init__()
         self.tau_rc = tau_rc
         self.tau_ref = tau_ref
 
@@ -344,6 +346,7 @@ class Izhikevich(NeuronType):
 
     def __init__(self, tau_recovery=0.02, coupling=0.2,
                  reset_voltage=-65, reset_recovery=8):
+        super(Izhikevich, self).__init__()
         self.tau_recovery = tau_recovery
         self.coupling = coupling
         self.reset_voltage = reset_voltage

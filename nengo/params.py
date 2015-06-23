@@ -1,8 +1,9 @@
 import collections
+import inspect
 
 import numpy as np
 
-from nengo.utils.compat import is_integer, is_number, is_string, itervalues
+from nengo.utils.compat import is_integer, is_number, is_string
 from nengo.utils.numpy import array_hash, compare
 from nengo.utils.stdlib import WeakKeyIDDictionary, checked_call
 
@@ -313,10 +314,8 @@ class FunctionParam(Parameter):
 
 class FrozenObject(object):
     def __init__(self):
-        class_dict = self.__class__.__dict__
-        self._params = tuple(v for v in itervalues(class_dict)
+        self._params = tuple(v for _, v in inspect.getmembers(self.__class__)
                              if isinstance(v, Parameter))
-
         if not all(p.readonly for p in self._params):
             raise ValueError(
                 "All parameters of a FrozenObject must be readonly")
